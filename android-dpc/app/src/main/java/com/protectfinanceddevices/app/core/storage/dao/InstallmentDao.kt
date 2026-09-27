@@ -1,0 +1,30 @@
+package com.protectfinanceddevices.app.core.storage.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import com.protectfinanceddevices.app.core.storage.entities.InstallmentEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface InstallmentDao {
+    @Query("SELECT * FROM installments WHERE agreementId = :agreementId ORDER BY installmentNumber ASC")
+    fun getInstallmentsForAgreement(agreementId: String): Flow<List<InstallmentEntity>>
+
+    @Query("SELECT * FROM installments WHERE status = 'OVERDUE'")
+    fun getOverdueInstallments(): Flow<List<InstallmentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstallment(installment: InstallmentEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInstallments(installments: List<InstallmentEntity>)
+
+    @Update
+    suspend fun updateInstallment(installment: InstallmentEntity)
+
+    @Query("UPDATE installments SET status = 'PAID', paidDate = :paidDate WHERE id = :installmentId")
+    suspend fun markInstallmentPaid(installmentId: String, paidDate: String)
+}
