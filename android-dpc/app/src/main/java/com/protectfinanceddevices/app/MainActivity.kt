@@ -14,25 +14,27 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-
-import com.protectfinanceddevices.app.core.dpc.DeviceLockManager
-import com.protectfinanceddevices.app.core.heartbeat.HeartbeatScheduler
 import com.protectfinanceddevices.app.core.network.DeviceEnrollmentService
 import com.protectfinanceddevices.app.core.network.EnrollmentResult
+import com.protectfinanceddevices.app.core.dpc.DeviceLockManager
+import com.protectfinanceddevices.app.core.storage.entities.AgreementEntity
 import com.protectfinanceddevices.app.core.storage.entities.DeviceCommandEntity
-
+import com.protectfinanceddevices.app.core.storage.entities.InstallmentEntity
 import com.protectfinanceddevices.app.ui.admin.*
-import com.protectfinanceddevices.app.ui.customer.CustomerDeviceStatusScreen
-import com.protectfinanceddevices.app.ui.customer.CustomerEnrollmentScreen
 import com.protectfinanceddevices.app.ui.customer.CustomerHomeScreen
+import com.protectfinanceddevices.app.ui.customer.CustomerEnrollmentScreen
+import com.protectfinanceddevices.app.ui.customer.CustomerDeviceStatusScreen
+import com.protectfinanceddevices.app.core.heartbeat.HeartbeatScheduler
 import com.protectfinanceddevices.app.ui.lock.DeviceRestrictedScreen
 import com.protectfinanceddevices.app.ui.navigation.NavRoutes
 import com.protectfinanceddevices.app.ui.theme.ProtectFinancedDevicesTheme
 import com.protectfinanceddevices.app.ui.theme.Slate900
 import com.protectfinanceddevices.app.ui.theme.Slate950
-
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -63,36 +65,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Start periodic heartbeat
         try {
             HeartbeatScheduler.schedulePeriodicHeartbeat(this)
         } catch (e: Exception) {
             android.util.Log.e(
                 "MainActivity",
-                "Failed to schedule heartbeat: ${e.message}"
+                "Failed to schedule WorkManager heartbeat: ${e.message}"
             )
         }
 
         setContent {
-
             ProtectFinancedDevicesTheme {
 
                 val navController = rememberNavController()
-
-                // -----------------------------
-                // ROOM DATA
-                // -----------------------------
 
                 val devices by database.deviceDao()
                     .getAllDevices()
                     .collectAsState(initial = emptyList())
 
-                val customers by database.customerDao()
-                    .getAllCustomers()
-                    .collectAsState(initial = emptyList())
-
                 val alerts by database.alertDao()
                     .getAllAlerts()
+                    .collectAsState(initial = emptyList())
+
+                val customers by database.customerDao()
+                    .getAllCustomers()
                     .collectAsState(initial = emptyList())
 
                 val agreements by database.agreementDao()
@@ -100,7 +96,7 @@ class MainActivity : ComponentActivity() {
                     .collectAsState(initial = emptyList())
 
                 val installments by database.installmentDao()
-                    .getOverdueInstallments()
+                    .getAllInstallments()
                     .collectAsState(initial = emptyList())
 
                 val activeEnrollment by database.deviceEnrollmentDao()
@@ -108,19 +104,15 @@ class MainActivity : ComponentActivity() {
                     .collectAsState(initial = null)
 
                 val currentRoute =
-                    navController.currentBackStackEntryAsState()
+                    navController
+                        .currentBackStackEntryAsState()
                         .value
                         ?.destination
                         ?.route
 
-                // -----------------------------
-                // MAIN UI
-                // -----------------------------
-
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Slate950,
-
                     bottomBar = {
 
                         if (
@@ -141,20 +133,18 @@ class MainActivity : ComponentActivity() {
                                     selected =
                                         currentRoute ==
                                             NavRoutes.Dashboard.route,
-
                                     onClick = {
                                         navController.navigate(
                                             NavRoutes.Dashboard.route
                                         )
                                     },
-
                                     icon = {
                                         Icon(
                                             Icons.Default.Dashboard,
-                                            contentDescription = "Dashboard"
+                                            contentDescription =
+                                                "Dashboard"
                                         )
                                     },
-
                                     label = {
                                         Text("Dashboard")
                                     }
@@ -164,20 +154,18 @@ class MainActivity : ComponentActivity() {
                                     selected =
                                         currentRoute ==
                                             NavRoutes.DeviceList.route,
-
                                     onClick = {
                                         navController.navigate(
                                             NavRoutes.DeviceList.route
                                         )
                                     },
-
                                     icon = {
                                         Icon(
                                             Icons.Default.Smartphone,
-                                            contentDescription = "Devices"
+                                            contentDescription =
+                                                "Devices"
                                         )
                                     },
-
                                     label = {
                                         Text("Devices")
                                     }
@@ -187,20 +175,18 @@ class MainActivity : ComponentActivity() {
                                     selected =
                                         currentRoute ==
                                             NavRoutes.Customers.route,
-
                                     onClick = {
                                         navController.navigate(
                                             NavRoutes.Customers.route
                                         )
                                     },
-
                                     icon = {
                                         Icon(
                                             Icons.Default.People,
-                                            contentDescription = "Customers"
+                                            contentDescription =
+                                                "Customers"
                                         )
                                     },
-
                                     label = {
                                         Text("Customers")
                                     }
@@ -210,20 +196,18 @@ class MainActivity : ComponentActivity() {
                                     selected =
                                         currentRoute ==
                                             NavRoutes.Financing.route,
-
                                     onClick = {
                                         navController.navigate(
                                             NavRoutes.Financing.route
                                         )
                                     },
-
                                     icon = {
                                         Icon(
                                             Icons.Default.AttachMoney,
-                                            contentDescription = "Financing"
+                                            contentDescription =
+                                                "Financing"
                                         )
                                     },
-
                                     label = {
                                         Text("Financing")
                                     }
@@ -233,20 +217,18 @@ class MainActivity : ComponentActivity() {
                                     selected =
                                         currentRoute ==
                                             NavRoutes.Settings.route,
-
                                     onClick = {
                                         navController.navigate(
                                             NavRoutes.Settings.route
                                         )
                                     },
-
                                     icon = {
                                         Icon(
                                             Icons.Default.Shield,
-                                            contentDescription = "Security"
+                                            contentDescription =
+                                                "Security"
                                         )
                                     },
-
                                     label = {
                                         Text("Security")
                                     }
@@ -258,26 +240,22 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = NavRoutes.Dashboard.route,
-                        modifier = Modifier.padding(innerPadding)
+                        startDestination =
+                            NavRoutes.Dashboard.route,
+                        modifier =
+                            Modifier.padding(innerPadding)
                     ) {
 
-                        // =================================================
-                        // 1. DASHBOARD
-                        // =================================================
-
+                        // 1. Dashboard
                         composable(
                             NavRoutes.Dashboard.route
                         ) {
 
                             AdminDashboardScreen(
-
                                 devices = devices,
-
                                 alerts = alerts,
 
                                 onNavigateToDeviceDetails = { deviceId ->
-
                                     navController.navigate(
                                         NavRoutes.DeviceDetails
                                             .createRoute(deviceId)
@@ -285,178 +263,34 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onNavigateToDevices = {
-
                                     navController.navigate(
                                         NavRoutes.DeviceList.route
                                     )
                                 },
 
                                 onNavigateToAlerts = {
-
                                     navController.navigate(
                                         NavRoutes.Alerts.route
                                     )
                                 },
 
                                 onNavigateToFinancing = {
-
                                     navController.navigate(
                                         NavRoutes.Financing.route
                                     )
-                                },
-
-                                // IMPORTANT:
-                                // These names match the current
-                                // AdminDashboardScreen.
-
-                                onNewCustomer = {
-
-                                    navController.navigate(
-                                        NavRoutes.NewCustomer.route
-                                    )
-                                },
-
-                                onCustomerList = {
-
-                                    navController.navigate(
-                                        NavRoutes.Customers.route
-                                    )
-                                },
-
-                                onAddDevice = {
-
-                                    navController.navigate(
-                                        NavRoutes.AddDevice.route
-                                    )
-                                },
-
-                                onKeyManagement = {
-
-                                    navController.navigate(
-                                        NavRoutes.Settings.route
-                                    )
-                                },
-
-                                onHistory = {
-
-                                    navController.navigate(
-                                        NavRoutes.Financing.route
-                                    )
-                                },
-
-                                onSupport = {
-
-                                    navController.navigate(
-                                        NavRoutes.Alerts.route
-                                    )
-                                },
-
-                                onProfile = {
-
-                                    navController.navigate(
-                                        NavRoutes.Settings.route
-                                    )
-                                },
-
-                                onTransferPoint = {
-
-                                    navController.navigate(
-                                        NavRoutes.Customers.route
-                                    )
-                                },
-
-                                onRetailerList = {
-
-                                    navController.navigate(
-                                        NavRoutes.Customers.route
-                                    )
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 2. NEW CUSTOMER
-                        // =================================================
-
-                        composable(
-                            NavRoutes.NewCustomer.route
-                        ) {
-
-                            NewCustomerScreen(
-
-                                onSaveCustomer = { customer ->
-
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
-
-                                        database.customerDao()
-                                            .insertCustomer(customer)
-                                    }
-
-                                    navController.popBackStack()
-                                },
-
-                                onBack = {
-
-                                    navController.popBackStack()
-                                }
-                            )
-                        }
-
-                        // =================================================
-                        // 3. ADD DEVICE
-                        // =================================================
-
-                        composable(
-                            NavRoutes.AddDevice.route
-                        ) {
-
-                            AddDeviceScreen(
-
-                                customers = customers,
-
-                                onSaveDevice = { device ->
-
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
-
-                                        database.deviceDao()
-                                            .insertDevice(device)
-                                    }
-
-                                    navController.popBackStack()
-                                },
-
-                                onCreateCustomer = {
-
-                                    navController.navigate(
-                                        NavRoutes.NewCustomer.route
-                                    )
-                                },
-
-                                onBack = {
-
-                                    navController.popBackStack()
-                                }
-                            )
-                        }
-
-                        // =================================================
-                        // 4. DEVICE LIST
-                        // =================================================
-
+                        // 2. Devices List
                         composable(
                             NavRoutes.DeviceList.route
                         ) {
 
                             DeviceListScreen(
-
                                 devices = devices,
 
                                 onDeviceClick = { deviceId ->
-
                                     navController.navigate(
                                         NavRoutes.DeviceDetails
                                             .createRoute(deviceId)
@@ -464,22 +298,19 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 5. DEVICE DETAILS
-                        // =================================================
-
+                        // 3. Device Details
                         composable(
-                            route = NavRoutes.DeviceDetails.route,
-
+                            route =
+                                NavRoutes.DeviceDetails.route,
                             arguments = listOf(
                                 navArgument("deviceId") {
-                                    type = NavType.StringType
+                                    type =
+                                        NavType.StringType
                                 }
                             )
                         ) { backStackEntry ->
@@ -487,7 +318,7 @@ class MainActivity : ComponentActivity() {
                             val deviceId =
                                 backStackEntry.arguments
                                     ?.getString("deviceId")
-                                    ?: return@composable
+                                    ?: ""
 
                             val currentDevice =
                                 devices.find {
@@ -496,7 +327,8 @@ class MainActivity : ComponentActivity() {
 
                             val customer =
                                 customers.find {
-                                    it.id == currentDevice?.customerId
+                                    it.id ==
+                                        currentDevice?.customerId
                                 }
 
                             val agreement =
@@ -507,16 +339,14 @@ class MainActivity : ComponentActivity() {
                             val commands by database
                                 .deviceCommandDao()
                                 .getCommandsForDevice(deviceId)
-                                .collectAsState(initial = emptyList())
+                                .collectAsState(
+                                    initial = emptyList()
+                                )
 
                             DeviceDetailsScreen(
-
                                 device = currentDevice,
-
                                 customer = customer,
-
                                 agreement = agreement,
-
                                 commands = commands,
 
                                 onLockDevice = { reason ->
@@ -531,45 +361,41 @@ class MainActivity : ComponentActivity() {
                                                 "LOCKED"
                                             )
 
-                                        val command =
+                                        val cmd =
                                             DeviceCommandEntity(
                                                 commandId =
                                                     UUID.randomUUID()
                                                         .toString(),
-
                                                 deviceId = deviceId,
-
                                                 commandType =
                                                     "LOCK_DEVICE",
-
                                                 status =
                                                     "ACKNOWLEDGED",
-
                                                 nonce =
                                                     UUID.randomUUID()
                                                         .toString()
-                                                        .replace("-", ""),
-
+                                                        .replace(
+                                                            "-",
+                                                            ""
+                                                        ),
                                                 serverSignature =
                                                     "ECDSA_NIST_P256_SERVER_SIG",
-
                                                 issuedAt =
                                                     System.currentTimeMillis(),
-
                                                 expiresAt =
                                                     System.currentTimeMillis() +
                                                         86400000,
-
                                                 executionLog =
-                                                    "Lock requested: $reason"
+                                                    "Lock enforced: $reason"
                                             )
 
                                         database.deviceCommandDao()
-                                            .insertCommand(command)
+                                            .insertCommand(cmd)
 
-                                        lockManager.enforceLockState(
-                                            this@MainActivity
-                                        )
+                                        lockManager
+                                            .enforceLockState(
+                                                this@MainActivity
+                                            )
                                     }
                                 },
 
@@ -585,45 +411,41 @@ class MainActivity : ComponentActivity() {
                                                 "ACTIVE"
                                             )
 
-                                        val command =
+                                        val cmd =
                                             DeviceCommandEntity(
                                                 commandId =
                                                     UUID.randomUUID()
                                                         .toString(),
-
                                                 deviceId = deviceId,
-
                                                 commandType =
                                                     "UNLOCK_DEVICE",
-
                                                 status =
                                                     "ACKNOWLEDGED",
-
                                                 nonce =
                                                     UUID.randomUUID()
                                                         .toString()
-                                                        .replace("-", ""),
-
+                                                        .replace(
+                                                            "-",
+                                                            ""
+                                                        ),
                                                 serverSignature =
                                                     "ECDSA_NIST_P256_SERVER_SIG",
-
                                                 issuedAt =
                                                     System.currentTimeMillis(),
-
                                                 expiresAt =
                                                     System.currentTimeMillis() +
                                                         86400000,
-
                                                 executionLog =
-                                                    "Unlock requested"
+                                                    "Unlocked upon payment / manual override"
                                             )
 
                                         database.deviceCommandDao()
-                                            .insertCommand(command)
+                                            .insertCommand(cmd)
 
-                                        lockManager.releaseLockState(
-                                            this@MainActivity
-                                        )
+                                        lockManager
+                                            .releaseLockState(
+                                                this@MainActivity
+                                            )
                                     }
                                 },
 
@@ -633,41 +455,36 @@ class MainActivity : ComponentActivity() {
                                         Dispatchers.IO
                                     ) {
 
-                                        val command =
+                                        val cmd =
                                             DeviceCommandEntity(
                                                 commandId =
                                                     UUID.randomUUID()
                                                         .toString(),
-
                                                 deviceId = deviceId,
-
                                                 commandType =
                                                     "STATUS_REQUEST",
-
                                                 status =
                                                     "ACKNOWLEDGED",
-
                                                 nonce =
                                                     UUID.randomUUID()
                                                         .toString()
-                                                        .replace("-", ""),
-
+                                                        .replace(
+                                                            "-",
+                                                            ""
+                                                        ),
                                                 serverSignature =
                                                     "ECDSA_NIST_P256_SERVER_SIG",
-
                                                 issuedAt =
                                                     System.currentTimeMillis(),
-
                                                 expiresAt =
                                                     System.currentTimeMillis() +
                                                         86400000,
-
                                                 executionLog =
-                                                    "Status requested"
+                                                    "Diagnostic ping returned healthy"
                                             )
 
                                         database.deviceCommandDao()
-                                            .insertCommand(command)
+                                            .insertCommand(cmd)
                                     }
                                 },
 
@@ -677,61 +494,51 @@ class MainActivity : ComponentActivity() {
                                         Dispatchers.IO
                                     ) {
 
-                                        val command =
+                                        val cmd =
                                             DeviceCommandEntity(
                                                 commandId =
                                                     UUID.randomUUID()
                                                         .toString(),
-
                                                 deviceId = deviceId,
-
                                                 commandType =
                                                     "LOCATION_REQUEST",
-
                                                 status =
                                                     "ACKNOWLEDGED",
-
                                                 nonce =
                                                     UUID.randomUUID()
                                                         .toString()
-                                                        .replace("-", ""),
-
+                                                        .replace(
+                                                            "-",
+                                                            ""
+                                                        ),
                                                 serverSignature =
                                                     "ECDSA_NIST_P256_SERVER_SIG",
-
                                                 issuedAt =
                                                     System.currentTimeMillis(),
-
                                                 expiresAt =
                                                     System.currentTimeMillis() +
                                                         86400000,
-
                                                 executionLog =
                                                     "Location telemetry requested with user consent."
                                             )
 
                                         database.deviceCommandDao()
-                                            .insertCommand(command)
+                                            .insertCommand(cmd)
                                     }
                                 },
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 6. CUSTOMERS
-                        // =================================================
-
+                        // 4. Customers
                         composable(
                             NavRoutes.Customers.route
                         ) {
 
                             CustomerScreen(
-
                                 customers = customers,
 
                                 onCustomerClick = { customer ->
@@ -743,7 +550,6 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                     if (linkedDevice != null) {
-
                                         navController.navigate(
                                             NavRoutes.DeviceDetails
                                                 .createRoute(
@@ -754,37 +560,25 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 7. FINANCING
-                        // =================================================
-
+                        // 5. Financing
                         composable(
                             NavRoutes.Financing.route
                         ) {
 
-                            val allInstallments by database
-                                .installmentDao()
-                                .getInstallmentsForAgreement(
-                                    agreements
-                                        .firstOrNull()
-                                        ?.id
-                                        ?: ""
-                                )
-                                .collectAsState(
-                                    initial = emptyList()
-                                )
-
                             FinancingScreen(
-
                                 agreements = agreements,
+                                installments = installments,
 
-                                installments = allInstallments,
+                                onCreateAgreement = {
+                                    navController.navigate(
+                                        "create_agreement"
+                                    )
+                                },
 
                                 onRecordPayment = { installmentId ->
 
@@ -792,31 +586,163 @@ class MainActivity : ComponentActivity() {
                                         Dispatchers.IO
                                     ) {
 
-                                        database.installmentDao()
-                                            .markInstallmentPaid(
-                                                installmentId,
-                                                "2026-09-25"
-                                            )
+                                        val installment =
+                                            installments.find {
+                                                it.id ==
+                                                    installmentId
+                                            }
+
+                                        if (installment != null) {
+
+                                            val agreement =
+                                                agreements.find {
+                                                    it.id ==
+                                                        installment
+                                                            .agreementId
+                                                }
+
+                                            database
+                                                .installmentDao()
+                                                .markInstallmentPaid(
+                                                    installmentId,
+                                                    todayString()
+                                                )
+
+                                            if (agreement != null) {
+
+                                                val newPaid =
+                                                    (
+                                                        agreement
+                                                            .paidInstallments
+                                                        + 1
+                                                    ).coerceAtMost(
+                                                        agreement
+                                                            .numberOfInstallments
+                                                    )
+
+                                                val newRemaining =
+                                                    (
+                                                        agreement
+                                                            .remainingAmount
+                                                        - installment.amount
+                                                    ).coerceAtLeast(
+                                                        0.0
+                                                    )
+
+                                                val newRemainingCount =
+                                                    (
+                                                        agreement
+                                                            .numberOfInstallments
+                                                        - newPaid
+                                                    ).coerceAtLeast(
+                                                        0
+                                                    )
+
+                                                val newStatus =
+                                                    if (
+                                                        newRemainingCount ==
+                                                        0
+                                                    ) {
+                                                        "COMPLETED"
+                                                    } else {
+                                                        "ACTIVE"
+                                                    }
+
+                                                val updatedAgreement =
+                                                    agreement.copy(
+                                                        paidInstallments =
+                                                            newPaid,
+                                                        remainingAmount =
+                                                            newRemaining,
+                                                        remainingInstallments =
+                                                            newRemainingCount,
+                                                        status =
+                                                            newStatus
+                                                    )
+
+                                                database
+                                                    .agreementDao()
+                                                    .updateAgreement(
+                                                        updatedAgreement
+                                                    )
+                                            }
+                                        }
                                     }
                                 },
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 8. ALERTS
-                        // =================================================
+                        // 5b. Create Financing Agreement
+                        composable(
+                            "create_agreement"
+                        ) {
 
+                            CreateAgreementScreen(
+                                customers = customers,
+                                devices = devices,
+
+                                onSaveAgreement = {
+                                        agreement,
+                                        newInstallments ->
+
+                                    lifecycleScope.launch(
+                                        Dispatchers.IO
+                                    ) {
+
+                                        val existingAgreement =
+                                            database
+                                                .agreementDao()
+                                                .getAgreementByDeviceId(
+                                                    agreement.deviceId
+                                                )
+
+                                        if (
+                                            existingAgreement == null
+                                        ) {
+
+                                            database
+                                                .agreementDao()
+                                                .insertAgreement(
+                                                    agreement
+                                                )
+
+                                            database
+                                                .installmentDao()
+                                                .insertInstallments(
+                                                    newInstallments
+                                                )
+
+                                            runOnUiThread {
+                                                navController
+                                                    .popBackStack()
+                                            }
+
+                                        } else {
+
+                                            android.util.Log.w(
+                                                "Financing",
+                                                "Device already has an agreement: ${agreement.deviceId}"
+                                            )
+                                        }
+                                    }
+                                },
+
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        // 6. Alerts
                         composable(
                             NavRoutes.Alerts.route
                         ) {
 
                             AlertsScreen(
-
                                 alerts = alerts,
 
                                 onAcknowledgeAlert = { alertId ->
@@ -824,7 +750,6 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch(
                                         Dispatchers.IO
                                     ) {
-
                                         database.alertDao()
                                             .acknowledgeAlert(
                                                 alertId
@@ -833,16 +758,12 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 9. SETTINGS
-                        // =================================================
-
+                        // 7. Settings
                         composable(
                             NavRoutes.Settings.route
                         ) {
@@ -854,45 +775,35 @@ class MainActivity : ComponentActivity() {
                                 lockManager.isDeviceAdminActive()
 
                             val isHardware =
-                                keyStoreManager.isHardwareBacked()
+                                keyStoreManager
+                                    .isHardwareBacked()
 
-                            val publicKeySnippet =
+                            val pubKeySnippet =
                                 try {
-
                                     keyStoreManager
                                         .getOrCreateEnrollmentKeyPair()
                                         .take(45) + "..."
-
-                                } catch (e: Exception) {
-
+                                } catch (
+                                    e: Exception
+                                ) {
                                     "Generated in Android Keystore"
                                 }
 
                             SettingsScreen(
-
-                                isDeviceOwner =
-                                    isOwner,
-
-                                isDeviceAdminActive =
-                                    isAdmin,
-
+                                isDeviceOwner = isOwner,
+                                isDeviceAdminActive = isAdmin,
                                 isKeystoreHardwareBacked =
                                     isHardware,
-
                                 publicKeySnippet =
-                                    publicKeySnippet,
+                                    pubKeySnippet,
 
                                 onBack = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 10. CUSTOMER PORTAL
-                        // =================================================
-
+                        // 8. Customer Portal
                         composable(
                             NavRoutes.CustomerPortal.route
                         ) {
@@ -904,27 +815,23 @@ class MainActivity : ComponentActivity() {
                                 agreements.firstOrNull()
 
                             CustomerHomeScreen(
-
                                 device = currentDevice,
-
-                                agreement = currentAgreement,
+                                agreement =
+                                    currentAgreement,
 
                                 onSwitchToAdmin = {
-
                                     navController.navigate(
                                         NavRoutes.Dashboard.route
                                     )
                                 },
 
                                 onSimulateLock = {
-
                                     navController.navigate(
                                         NavRoutes.LockScreenPreview.route
                                     )
                                 },
 
                                 onViewDeviceStatus = {
-
                                     navController.navigate(
                                         NavRoutes.CustomerDeviceStatus.route
                                     )
@@ -932,10 +839,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // =================================================
-                        // 11. CUSTOMER DEVICE STATUS
-                        // =================================================
-
+                        // 8b. Customer Device Status
                         composable(
                             NavRoutes.CustomerDeviceStatus.route
                         ) {
@@ -947,20 +851,17 @@ class MainActivity : ComponentActivity() {
                                 agreements.firstOrNull()
 
                             CustomerDeviceStatusScreen(
-
                                 device = currentDevice,
-
-                                agreement = currentAgreement,
-
-                                enrollment = activeEnrollment,
+                                agreement =
+                                    currentAgreement,
+                                enrollment =
+                                    activeEnrollment,
 
                                 onNavigateBack = {
-
                                     navController.popBackStack()
                                 },
 
                                 onManualSync = {
-
                                     HeartbeatScheduler
                                         .enqueueImmediateHeartbeat(
                                             this@MainActivity
@@ -969,27 +870,19 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // =================================================
-                        // 12. LOCK SCREEN PREVIEW
-                        // =================================================
-
+                        // 9. Lock Preview
                         composable(
                             NavRoutes.LockScreenPreview.route
                         ) {
 
                             DeviceRestrictedScreen(
-
                                 onDismissPreview = {
-
                                     navController.popBackStack()
                                 }
                             )
                         }
 
-                        // =================================================
-                        // 13. CUSTOMER ENROLLMENT
-                        // =================================================
-
+                        // 10. Customer Enrollment
                         composable(
                             NavRoutes.CustomerEnrollment.route
                         ) {
@@ -999,7 +892,6 @@ class MainActivity : ComponentActivity() {
                                     .isHardwareBacked()
 
                             CustomerEnrollmentScreen(
-
                                 isHardwareBacked =
                                     isHardware,
 
@@ -1029,19 +921,16 @@ class MainActivity : ComponentActivity() {
                                                     disclosureResult
                                                         .isSuccess
                                                 ) {
-
                                                     disclosureResult
                                                         .getOrNull()
                                                         ?.enrollmentId
                                                         ?: code
-
                                                 } else {
-
                                                     code
                                                 }
 
                                             when (
-                                                val result =
+                                                val res =
                                                     enrollmentService
                                                         .executeEnrollmentVerification(
                                                             enrollmentId,
@@ -1058,7 +947,7 @@ class MainActivity : ComponentActivity() {
 
                                                     onDone(
                                                         true,
-                                                        result.message
+                                                        res.message
                                                     )
                                                 }
 
@@ -1066,12 +955,14 @@ class MainActivity : ComponentActivity() {
 
                                                     onDone(
                                                         false,
-                                                        result.error
+                                                        res.error
                                                     )
                                                 }
                                             }
 
-                                        } catch (e: Exception) {
+                                        } catch (
+                                            e: Exception
+                                        ) {
 
                                             onDone(
                                                 false,
@@ -1083,14 +974,12 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onEnrollmentComplete = {
-
                                     navController.navigate(
                                         NavRoutes.CustomerDeviceStatus.route
                                     )
                                 },
 
                                 onCancel = {
-
                                     navController.popBackStack()
                                 }
                             )
@@ -1099,5 +988,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun todayString(): String {
+        return SimpleDateFormat(
+            "yyyy-MM-dd",
+            Locale.US
+        ).format(Date())
     }
 }
