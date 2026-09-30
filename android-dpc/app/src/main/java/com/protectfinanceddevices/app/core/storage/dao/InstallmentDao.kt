@@ -29,9 +29,15 @@ interface InstallmentDao {
     @Update
     suspend fun updateInstallment(installment: InstallmentEntity)
 
-    @Query("UPDATE installments SET status = 'PAID', paidDate = :paidDate WHERE id = :installmentId")
+    @Query("SELECT * FROM installments WHERE id = :installmentId LIMIT 1")
+    suspend fun getInstallmentById(installmentId: String): InstallmentEntity?
+
+    @Query("SELECT * FROM installments WHERE agreementId = :agreementId ORDER BY installmentNumber ASC")
+    suspend fun getInstallmentsForAgreementOnce(agreementId: String): List<InstallmentEntity>
+
+    @Query("UPDATE installments SET status = 'PAID', paidDate = :paidDate WHERE id = :installmentId AND status != 'PAID'")
     suspend fun markInstallmentPaid(
         installmentId: String,
         paidDate: String
-    )
+    ): Int
 }
