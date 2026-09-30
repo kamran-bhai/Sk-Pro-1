@@ -15,6 +15,7 @@ import com.protectfinanceddevices.app.core.network.ApiConfig
 import com.protectfinanceddevices.app.core.network.AuthSessionStore
 import com.protectfinanceddevices.app.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminLoginScreen(
     sessionStore: AuthSessionStore,
