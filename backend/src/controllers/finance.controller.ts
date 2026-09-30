@@ -316,11 +316,16 @@ export class FinanceController {
     }
     agreement.updatedAt = new Date().toISOString();
 
-    // Check device enrollment status: if device was locked/overdue, return to ACTIVE if no overdue remains
+    // Financing status is the source of truth for protection eligibility.
+    // Do not release device protection merely because one overdue installment was paid;
+    // the agreement must be fully completed before protection can be released.
     const enrollment = db.enrollments.find(e => e.agreementId === agreement.id);
-    if (enrollment && (enrollment.enrollmentStatus === 'OVERDUE' || enrollment.enrollmentStatus === 'LOCKED')) {
-      if (!anyOverdueLeft) {
+    if (enrollment) {
+      if (agreement.status === 'COMPLETED') {
         enrollment.enrollmentStatus = 'ACTIVE';
+        enrollment.lastSecurityEvent = 'AGREEMENT_COMPLETED_PROTECTION_RELEASE_ELIGIBLE';
+      } else if (agreement.status === 'OVERDUE') {
+        enrollment.lastSecurityEvent = 'AGREEMENT_OVERDUE_PROTECTION_REMAINING';
       }
     }
 
