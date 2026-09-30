@@ -16,6 +16,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.protectfinanceddevices.app.core.heartbeat.HeartbeatScheduler
+import com.protectfinanceddevices.app.core.network.ApiClient
+import com.protectfinanceddevices.app.core.network.ApiConfig
 import com.protectfinanceddevices.app.core.network.DeviceEnrollmentService
 import com.protectfinanceddevices.app.core.network.EnrollmentResult
 import com.protectfinanceddevices.app.core.dpc.DeviceLockManager
@@ -31,6 +33,7 @@ import com.protectfinanceddevices.app.ui.theme.Slate900
 import com.protectfinanceddevices.app.ui.theme.Slate950
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -458,6 +461,19 @@ class MainActivity : ComponentActivity() {
                                     initial = emptyList()
                                 )
 
+                            var enrollmentCode by remember(deviceId) {
+                                mutableStateOf<String?>(null)
+                            }
+                            var enrollmentExpiresAt by remember(deviceId) {
+                                mutableStateOf<String?>(null)
+                            }
+                            var enrollmentError by remember(deviceId) {
+                                mutableStateOf<String?>(null)
+                            }
+                            var generatingEnrollment by remember(deviceId) {
+                                mutableStateOf(false)
+                            }
+
                             DeviceDetailsScreen(
 
                                 device = currentDevice,
@@ -680,10 +696,111 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
 
+                                onGenerateEnrollment = {
+                                    if (currentDevice == null || agreement == null) {
+                                        enrollmentError = "Customer, device, and financing agreement are required."
+                                    } else if (authSessionStore.accessToken.isNullOrBlank()) {
+                                        enrollmentError = "Admin session expired. Please sign in again."
+                                        navController.navigate(NavRoutes.AdminLogin.route)
+                                    } else {
+                                        generatingEnrollment = true
+                                        enrollmentError = null
+
+                                        lifecycleScope.launch {
+                                            val payload = JSONObject()
+                                                .put("customerId", currentDevice.customerId)
+                                                .put("deviceId", currentDevice.id)
+                                                .put("agreementId", agreement.id)
+                                                .put("validityMinutes", 30)
+
+                                            val response = ApiClient().post(
+                                                ApiConfig.API_PREFIX + "/enrollments",
+                                                payload,
+                                                authSessionStore.accessToken
+                                            )
+
+                                            generatingEnrollment = false
+
+                                            if (response.isSuccess) {
+                                                val data = response.data?.optJSONObject("data")
+                                                enrollmentCode = data?.optString("enrollmentCode").orEmpty()
+                                                enrollmentExpiresAt = data?.optString("expiresAt").orEmpty()
+                                                if (enrollmentCode.isNullOrBlank()) {
+                                                    enrollmentError = "Server returned no enrollment code."
+                                                }
+                                            } else if (response.statusCode == 401 || response.statusCode == 403) {
+                                                authSessionStore.clear()
+                                                enrollmentError = "Admin session expired. Please sign in again."
+                                                navController.navigate(NavRoutes.AdminLogin.route)
+                                            } else {
+                                                enrollmentError = response.errorMessage
+                                                    ?: "Could not create enrollment ticket."
+                                            }
+                                        }
+                                    }
+                                },
+
                                 onBack = {
                                     navController.popBackStack()
                                 }
                             )
+
+                            if (generatingEnrollment) {
+                                AlertDialog(
+                                    onDismissRequest = {},
+                                    title = { Text("Creating Enrollment Ticket") },
+                                    text = { Text("Please wait while the server creates a one-time pairing code.") },
+                                    confirmButton = {}
+                                )
+                            }
+
+                            enrollmentCode?.takeIf { it.isNotBlank() }?.let { code ->
+                                AlertDialog(
+                                    onDismissRequest = { enrollmentCode = null },
+                                    title = { Text("Enrollment Code Created") },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                "Give this one-time code to the customer. It expires in 30 minutes."
+                                            )
+                                            Spacer(modifier = Modifier.padding(top = 8.dp))
+                                            SelectionContainer {
+                                                Text(
+                                                    code,
+                                                    style = MaterialTheme.typography.headlineSmall
+                                                )
+                                            }
+                                            enrollmentExpiresAt
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?.let {
+                                                    Spacer(modifier = Modifier.padding(top = 8.dp))
+                                                    Text(
+                                                        "Expires: $it",
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
+                                                }
+                                        }
+                                    },
+                                    confirmButton = {
+                                        TextButton(onClick = { enrollmentCode = null }) {
+                                            Text("Done")
+                                        }
+                                    }
+                                )
+                            }
+
+                            enrollmentError?.let { error ->
+                                AlertDialog(
+                                    onDismissRequest = { enrollmentError = null },
+                                    title = { Text("Enrollment Ticket Error") },
+                                    text = { Text(error) },
+                                    confirmButton = {
+                                        TextButton(onClick = { enrollmentError = null }) {
+                                            Text("OK")
+                                        }
+                                    }
+                                )
+                            }
                         }
 
                         /*
