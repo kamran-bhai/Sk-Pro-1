@@ -194,6 +194,31 @@ class DeviceLockManager(private val context: Context) {
         }
     }
 
+    /**
+     * Synchronizes supported enterprise protection with the financing state.
+     * ACTIVE/OVERDUE financing keeps protection enabled; COMPLETED/CANCELLED
+     * releases the supported policies. Non-Device-Owner devices are reported
+     * as unsupported rather than pretending that protection was applied.
+     */
+    fun syncFinancingProtection(agreementStatus: String): Boolean {
+        if (!isDeviceOwner()) {
+            Log.w(TAG, "Financing protection sync ignored: not Device Owner")
+            return false
+        }
+
+        val normalizedStatus = agreementStatus.uppercase()
+        val shouldProtect = normalizedStatus == "ACTIVE" || normalizedStatus == "OVERDUE"
+        val shouldRelease = normalizedStatus == "COMPLETED" || normalizedStatus == "PAID" || normalizedStatus == "CANCELLED"
+
+        if (!shouldProtect && !shouldRelease) {
+            Log.w(TAG, "Unknown agreement status; protection state unchanged: $agreementStatus")
+            return false
+        }
+
+        applyProtectionRestrictions(shouldProtect)
+        return true
+    }
+
     fun setDebuggingBlocked(enabled: Boolean) {
         if (!isDeviceOwner()) {
             Log.w(TAG, "setDebuggingBlocked ignored: not Device Owner")
