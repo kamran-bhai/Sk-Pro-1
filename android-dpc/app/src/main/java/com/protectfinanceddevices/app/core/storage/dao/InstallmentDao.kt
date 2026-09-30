@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InstallmentDao {
+
+    @Query("SELECT * FROM installments ORDER BY agreementId, installmentNumber ASC")
+    fun getAllInstallments(): Flow<List<InstallmentEntity>>
+
     @Query("SELECT * FROM installments WHERE agreementId = :agreementId ORDER BY installmentNumber ASC")
     fun getInstallmentsForAgreement(agreementId: String): Flow<List<InstallmentEntity>>
 
@@ -26,5 +30,8 @@ interface InstallmentDao {
     suspend fun updateInstallment(installment: InstallmentEntity)
 
     @Query("UPDATE installments SET status = 'PAID', paidDate = :paidDate WHERE id = :installmentId")
-    suspend fun markInstallmentPaid(installmentId: String, paidDate: String)
+    suspend fun markInstallmentPaid(
+        installmentId: String,
+        paidDate: String
+    )
 }
