@@ -827,6 +827,10 @@ class MainActivity : ComponentActivity() {
 
                                 installments = allInstallments,
 
+                                onCreateAgreement = {
+                                    navController.navigate(NavRoutes.Financing.route)
+                                },
+
                                 onRecordPayment = { installmentId ->
 
                                     lifecycleScope.launch(
