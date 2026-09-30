@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +40,7 @@ import com.protectfinanceddevices.app.core.storage.entities.CustomerEntity
 import com.protectfinanceddevices.app.core.storage.entities.DeviceEntity
 import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddDeviceScreen(
     customers: List<CustomerEntity>,
@@ -46,19 +48,12 @@ fun AddDeviceScreen(
     onCreateCustomer: () -> Unit,
     onBack: () -> Unit
 ) {
-
     var selectedCustomer by remember {
         mutableStateOf<CustomerEntity?>(null)
     }
 
     var customerMenuExpanded by remember {
         mutableStateOf(false)
-    }
-
-    var deviceId by remember {
-        mutableStateOf(
-            "DEV-${UUID.randomUUID().toString().take(8).uppercase()}"
-        )
     }
 
     var manufacturer by remember {
@@ -70,27 +65,19 @@ fun AddDeviceScreen(
     }
 
     var androidVersion by remember {
-        mutableStateOf("Unknown")
+        mutableStateOf("")
     }
 
     var enrollmentPublicKey by remember {
         mutableStateOf("")
     }
 
-    var batteryText by remember {
+    var batteryPercent by remember {
         mutableStateOf("0")
     }
 
     var simCarrier by remember {
         mutableStateOf("")
-    }
-
-    var isOnline by remember {
-        mutableStateOf(false)
-    }
-
-    var usbDebuggingActive by remember {
-        mutableStateOf(false)
     }
 
     var managementMode by remember {
@@ -109,9 +96,16 @@ fun AddDeviceScreen(
         mutableStateOf(false)
     }
 
+    var isOnline by remember {
+        mutableStateOf(false)
+    }
+
+    var usbDebuggingActive by remember {
+        mutableStateOf(false)
+    }
+
     val canSave =
         selectedCustomer != null &&
-        deviceId.trim().isNotEmpty() &&
         manufacturer.trim().isNotEmpty() &&
         model.trim().isNotEmpty()
 
@@ -150,6 +144,7 @@ fun AddDeviceScreen(
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
+
                     Row {
                         Icon(
                             imageVector = Icons.Default.Devices,
@@ -171,85 +166,60 @@ fun AddDeviceScreen(
                     )
 
                     Text(
-                        text = "This creates a local device record. Actual Android Device Owner provisioning is handled separately.",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Create a device record for an existing customer.",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
 
-            if (customers.isEmpty()) {
+            Text(
+                text = "Customer",
+                style = MaterialTheme.typography.titleSmall
+            )
 
-                Card(
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                OutlinedButton(
+                    onClick = {
+                        customerMenuExpanded = true
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-
-                        Text(
-                            text = "No customers found",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(6.dp)
-                        )
-
-                        Text(
-                            text = "Create a customer before adding a device."
-                        )
-
-                        Spacer(
-                            modifier = Modifier.height(12.dp)
-                        )
-
-                        Button(
-                            onClick = onCreateCustomer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Create Customer")
-                        }
-                    }
+                    Text(
+                        text = selectedCustomer?.fullName
+                            ?: "Select Customer"
+                    )
                 }
 
-            } else {
-
-                Text(
-                    text = "Customer *",
-                    style = MaterialTheme.typography.labelLarge
-                )
-
-                Box(
-                    modifier = Modifier.fillMaxWidth()
+                DropdownMenu(
+                    expanded = customerMenuExpanded,
+                    onDismissRequest = {
+                        customerMenuExpanded = false
+                    }
                 ) {
 
-                    OutlinedButton(
-                        onClick = {
-                            customerMenuExpanded = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            selectedCustomer?.fullName
-                                ?: "Select Customer"
-                        )
-                    }
+                    if (customers.isEmpty()) {
 
-                    DropdownMenu(
-                        expanded = customerMenuExpanded,
-                        onDismissRequest = {
-                            customerMenuExpanded = false
-                        }
-                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text("No customers found")
+                            },
+                            onClick = {
+                                customerMenuExpanded = false
+                                onCreateCustomer()
+                            }
+                        )
+
+                    } else {
 
                         customers.forEach { customer ->
 
                             DropdownMenuItem(
                                 text = {
                                     Column {
-                                        Text(
-                                            text = customer.fullName
-                                        )
+                                        Text(customer.fullName)
 
                                         Text(
                                             text = customer.phoneNumber,
@@ -267,17 +237,15 @@ fun AddDeviceScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = deviceId,
-                onValueChange = {
-                    deviceId = it
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("Device ID *")
-                },
-                singleLine = true
-            )
+            if (customers.isEmpty()) {
+
+                Button(
+                    onClick = onCreateCustomer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Create Customer First")
+                }
+            }
 
             OutlinedTextField(
                 value = manufacturer,
@@ -287,9 +255,6 @@ fun AddDeviceScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text("Manufacturer *")
-                },
-                placeholder = {
-                    Text("Example: Samsung")
                 },
                 singleLine = true
             )
@@ -301,10 +266,7 @@ fun AddDeviceScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 label = {
-                    Text("Model *")
-                },
-                placeholder = {
-                    Text("Example: Galaxy A15")
+                    Text("Device Model *")
                 },
                 singleLine = true
             )
@@ -318,9 +280,6 @@ fun AddDeviceScreen(
                 label = {
                     Text("Android Version")
                 },
-                placeholder = {
-                    Text("Example: Android 14")
-                },
                 singleLine = true
             )
 
@@ -333,29 +292,19 @@ fun AddDeviceScreen(
                 label = {
                     Text("Enrollment Public Key")
                 },
-                supportingText = {
-                    Text("Optional")
-                },
-                minLines = 2,
-                maxLines = 4
+                singleLine = true
             )
 
             OutlinedTextField(
-                value = batteryText,
-                onValueChange = { value ->
-                    if (
-                        value.isEmpty() ||
-                        value.all { it.isDigit() }
-                    ) {
-                        batteryText = value
+                value = batteryPercent,
+                onValueChange = {
+                    batteryPercent = it.filter { char ->
+                        char.isDigit()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 label = {
-                    Text("Battery Percent")
-                },
-                supportingText = {
-                    Text("0 - 100")
+                    Text("Battery Percentage")
                 },
                 singleLine = true
             )
@@ -369,15 +318,12 @@ fun AddDeviceScreen(
                 label = {
                     Text("SIM Carrier")
                 },
-                placeholder = {
-                    Text("Example: GP / Robi / Banglalink")
-                },
                 singleLine = true
             )
 
             Text(
                 text = "Management Mode",
-                style = MaterialTheme.typography.labelLarge
+                style = MaterialTheme.typography.titleSmall
             )
 
             Box(
@@ -400,11 +346,13 @@ fun AddDeviceScreen(
                     }
                 ) {
 
-                    listOf(
+                    val modes = listOf(
                         "UNMANAGED",
                         "DEVICE_ADMIN",
                         "DEVICE_OWNER"
-                    ).forEach { mode ->
+                    )
+
+                    modes.forEach { mode ->
 
                         DropdownMenuItem(
                             text = {
@@ -421,7 +369,7 @@ fun AddDeviceScreen(
 
             Text(
                 text = "Enrollment Status",
-                style = MaterialTheme.typography.labelLarge
+                style = MaterialTheme.typography.titleSmall
             )
 
             Box(
@@ -444,14 +392,16 @@ fun AddDeviceScreen(
                     }
                 ) {
 
-                    listOf(
+                    val statuses = listOf(
                         "OFFLINE",
                         "ACTIVE",
                         "LOCKED",
                         "OVERDUE",
                         "SUSPENDED",
                         "COMPLETED"
-                    ).forEach { status ->
+                    )
+
+                    statuses.forEach { status ->
 
                         DropdownMenuItem(
                             text = {
@@ -471,26 +421,32 @@ fun AddDeviceScreen(
             ) {
 
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
 
                     Text(
                         text = "Device State",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-
-                    Spacer(
-                        modifier = Modifier.height(8.dp)
+                        style = MaterialTheme.typography.titleMedium
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
 
-                        Text(
-                            text = "Online",
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column {
+                            Text("Online")
+
+                            Text(
+                                text = if (isOnline) {
+                                    "Device is online"
+                                } else {
+                                    "Device is offline"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
 
                         Switch(
                             checked = isOnline,
@@ -501,13 +457,22 @@ fun AddDeviceScreen(
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
 
-                        Text(
-                            text = "USB Debugging Active",
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column {
+                            Text("USB Debugging")
+
+                            Text(
+                                text = if (usbDebuggingActive) {
+                                    "Enabled"
+                                } else {
+                                    "Disabled"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
 
                         Switch(
                             checked = usbDebuggingActive,
@@ -526,34 +491,28 @@ fun AddDeviceScreen(
             Button(
                 onClick = {
 
-                    val battery = batteryText
-                        .toIntOrNull()
-                        ?.coerceIn(0, 100)
-                        ?: 0
+                    val parsedBattery =
+                        batteryPercent
+                            .toIntOrNull()
+                            ?.coerceIn(0, 100)
+                            ?: 0
 
                     val device = DeviceEntity(
-                        id = deviceId.trim(),
+                        id = UUID.randomUUID().toString(),
                         customerId = selectedCustomer!!.id,
                         model = model.trim(),
                         manufacturer = manufacturer.trim(),
-                        androidVersion = androidVersion.trim()
-                            .ifBlank { "Unknown" },
+                        androidVersion = androidVersion.trim(),
                         enrollmentStatus = enrollmentStatus,
                         managementMode = managementMode,
-                        enrollmentPublicKey =
-                            enrollmentPublicKey.trim(),
-                        lastSeenTimestamp =
-                            if (isOnline) {
-                                System.currentTimeMillis()
-                            } else {
-                                0L
-                            },
-                        batteryPercent = battery,
+                        enrollmentPublicKey = enrollmentPublicKey.trim(),
+                        lastSeenTimestamp = System.currentTimeMillis(),
+                        batteryPercent = parsedBattery,
                         isOnline = isOnline,
-                        simCarrier = simCarrier.trim()
-                            .ifBlank { null },
-                        usbDebuggingActive =
-                            usbDebuggingActive
+                        simCarrier = simCarrier.trim().ifBlank {
+                            null
+                        },
+                        usbDebuggingActive = usbDebuggingActive
                     )
 
                     onSaveDevice(device)
@@ -577,7 +536,7 @@ fun AddDeviceScreen(
             if (!canSave) {
 
                 Text(
-                    text = "Customer, Device ID, Manufacturer and Model are required.",
+                    text = "Customer, Manufacturer and Device Model are required.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
