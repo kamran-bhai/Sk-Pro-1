@@ -167,8 +167,8 @@ class DeviceEnrollmentService(
                         managementMode = "UNMANAGED",
                         enrollmentPublicKey = publicKeyPem,
                         lastSeenTimestamp = System.currentTimeMillis(),
-                        batteryPercent = 100,
-                        isOnline = true,
+                        batteryPercent = 0,
+                        isOnline = false,
                         simCarrier = null,
                         usbDebuggingActive = false
                     )
