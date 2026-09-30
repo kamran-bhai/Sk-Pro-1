@@ -12,6 +12,8 @@ import {
   EnrollmentRecord,
   DeviceHeartbeatRecord,
   DeviceActivityRecord,
+  DeviceControlKeyRecord,
+  RetailerAccountRecord,
   AgreementRecord,
   InstallmentRecord,
   PaymentRecord,
@@ -194,6 +196,22 @@ export class PersistentDatabase {
   }
   set auditLogs(val: AuditRecord[]) {
     DatabaseService.getInstance().getSchema().auditLogs = val;
+    DatabaseService.getInstance().schedulePersist();
+  }
+
+  get deviceControlKeys(): DeviceControlKeyRecord[] {
+    return DatabaseService.getInstance().getSchema().deviceControlKeys;
+  }
+  set deviceControlKeys(val: DeviceControlKeyRecord[]) {
+    DatabaseService.getInstance().getSchema().deviceControlKeys = val;
+    DatabaseService.getInstance().schedulePersist();
+  }
+
+  get retailerAccounts(): RetailerAccountRecord[] {
+    return DatabaseService.getInstance().getSchema().retailerAccounts;
+  }
+  set retailerAccounts(val: RetailerAccountRecord[]) {
+    DatabaseService.getInstance().getSchema().retailerAccounts = val;
     DatabaseService.getInstance().schedulePersist();
   }
 
