@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -878,18 +879,117 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch(
                                         Dispatchers.IO
                                     ) {
+                                        database.withTransaction {
+                                            val installment =
+                                                database
+                                                    .installmentDao()
+                                                    .getInstallmentById(installmentId)
+                                                    ?: return@withTransaction
 
-                                        database
-                                            .installmentDao()
-                                            .markInstallmentPaid(
-                                                installmentId,
+                                            if (installment.status == "PAID") {
+                                                return@withTransaction
+                                            }
+
+                                            val agreement =
+                                                database
+                                                    .agreementDao()
+                                                    .getAgreementById(
+                                                        installment.agreementId
+                                                    )
+                                                    ?: return@withTransaction
+
+                                            val paidDate =
                                                 java.text.SimpleDateFormat(
                                                     "yyyy-MM-dd",
                                                     java.util.Locale.US
                                                 ).format(
                                                     java.util.Date()
                                                 )
-                                            )
+
+                                            val updatedRows =
+                                                database
+                                                    .installmentDao()
+                                                    .markInstallmentPaid(
+                                                        installmentId,
+                                                        paidDate
+                                                    )
+
+                                            if (updatedRows == 0) {
+                                                return@withTransaction
+                                            }
+
+                                            val payment =
+                                                com.protectfinanceddevices.app
+                                                    .core.storage.entities.PaymentEntity(
+                                                        id = UUID.randomUUID().toString(),
+                                                        agreementId = agreement.id,
+                                                        installmentId = installment.id,
+                                                        amount = installment.amount +
+                                                            installment.penaltyFee,
+                                                        paidAt = paidDate
+                                                    )
+
+                                            database
+                                                .paymentDao()
+                                                .insertPayment(payment)
+
+                                            val allInstallments =
+                                                database
+                                                    .installmentDao()
+                                                    .getInstallmentsForAgreementOnce(
+                                                        agreement.id
+                                                    )
+
+                                            val unpaidInstallments =
+                                                allInstallments.filter {
+                                                    it.status != "PAID" &&
+                                                        it.status != "WAIVED"
+                                                }
+
+                                            val paidInstallments =
+                                                allInstallments.count {
+                                                    it.status == "PAID"
+                                                }
+
+                                            val remainingAmount =
+                                                unpaidInstallments.sumOf {
+                                                    it.amount + it.penaltyFee
+                                                }
+
+                                            val nextDueDate =
+                                                unpaidInstallments
+                                                    .minByOrNull { it.dueDate }
+                                                    ?.dueDate
+                                                    ?: agreement.nextDueDate
+
+                                            val updatedStatus =
+                                                when {
+                                                    unpaidInstallments.isEmpty() ->
+                                                        "COMPLETED"
+                                                    allInstallments.any {
+                                                        it.status == "OVERDUE"
+                                                    } ->
+                                                        "OVERDUE"
+                                                    else -> "ACTIVE"
+                                                }
+
+                                            database
+                                                .agreementDao()
+                                                .updateAgreement(
+                                                    agreement.copy(
+                                                        remainingAmount =
+                                                            remainingAmount,
+                                                        paidInstallments =
+                                                            paidInstallments,
+                                                        remainingInstallments =
+                                                            unpaidInstallments.size,
+                                                        nextDueDate =
+                                                            nextDueDate,
+                                                        status =
+                                                            updatedStatus
+                                                    )
+                                                )
+                                        }
                                     }
                                 },
 
