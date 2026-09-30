@@ -394,6 +394,12 @@ class MainActivity : ComponentActivity() {
                                     )
                                 },
 
+                                onAddDevice = {
+                                    navController.navigate(
+                                        NavRoutes.AddDevice.route
+                                    )
+                                },
+
                                 onBack = {
                                     navController.popBackStack()
                                 }
