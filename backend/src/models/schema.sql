@@ -186,3 +186,40 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs(created_at DESC);
+
+
+-- 13. One-Key / One-Device Control Licenses
+-- A control key is a server-issued credential for exactly one enrolled device.
+-- Store only a hash of the key; never store the plaintext key.
+CREATE TABLE IF NOT EXISTS device_control_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key_hash VARCHAR(128) UNIQUE NOT NULL,
+    key_last4 VARCHAR(4) NOT NULL,
+    issued_by UUID REFERENCES admins(id) ON DELETE SET NULL,
+    retailer_id UUID REFERENCES admins(id) ON DELETE SET NULL,
+    device_id UUID UNIQUE REFERENCES devices(id) ON DELETE RESTRICT,
+    enrollment_id UUID UNIQUE REFERENCES device_enrollments(id) ON DELETE RESTRICT,
+    status VARCHAR(30) NOT NULL DEFAULT 'ISSUED'
+        CHECK (status IN ('ISSUED', 'ACTIVATED', 'SUSPENDED', 'REVOKED', 'EXPIRED')),
+    expires_at TIMESTAMPTZ,
+    activated_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_device_control_keys_status ON device_control_keys(status);
+CREATE INDEX IF NOT EXISTS idx_device_control_keys_retailer ON device_control_keys(retailer_id);
+
+-- 14. Retailer tenancy / resale accounts
+CREATE TABLE IF NOT EXISTS retailer_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID UNIQUE REFERENCES admins(id) ON DELETE CASCADE,
+    business_name VARCHAR(200) NOT NULL,
+    phone_number VARCHAR(30),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Bind an activated control key to one enrollment only.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_control_key_active_enrollment
+    ON device_control_keys(enrollment_id)
+    WHERE status = 'ACTIVATED';
