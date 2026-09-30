@@ -99,6 +99,8 @@ export class DatabaseService {
       alerts: Array.isArray(data.alerts) ? data.alerts : [],
       auditLogs: Array.isArray(data.auditLogs) ? data.auditLogs : [],
       deviceActivities: Array.isArray(data.deviceActivities) ? data.deviceActivities : [],
+      deviceControlKeys: Array.isArray(data.deviceControlKeys) ? data.deviceControlKeys : [],
+      retailerAccounts: Array.isArray(data.retailerAccounts) ? data.retailerAccounts : [],
       usedNonces: Array.isArray(data.usedNonces) ? data.usedNonces : []
     };
 
