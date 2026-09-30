@@ -30,4 +30,7 @@ sealed class NavRoutes(val route: String) {
     object NewCustomer : NavRoutes("new_customer")
 
     object AddDevice : NavRoutes("add_device")
+
+    // Phase 3: financing agreement creation
+    object CreateAgreement : NavRoutes("create_agreement")
 }
