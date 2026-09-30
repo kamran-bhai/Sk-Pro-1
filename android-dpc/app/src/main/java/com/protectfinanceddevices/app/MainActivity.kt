@@ -1013,25 +1013,39 @@ class MainActivity : ComponentActivity() {
                                 devices = devices,
 
                                 onSaveAgreement = { agreement, installments ->
-
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
-
-                                        database
-                                            .agreementDao()
-                                            .insertAgreement(agreement)
-
-                                        database
-                                            .installmentDao()
-                                            .insertInstallments(installments)
-
-                                        // Newly created financing starts protected when the
-                                        // device is actually managed as Device Owner.
-                                        lockManager.syncFinancingProtection(agreement.status)
-
-                                        launch(Dispatchers.Main) {
-                                            navController.popBackStack()
+                                    val token = authSessionStore.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        navController.navigate(NavRoutes.AdminLogin.route)
+                                    } else {
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            val payload = JSONObject().apply {
+                                                put("customerId", agreement.customerId)
+                                                put("deviceId", agreement.deviceId)
+                                                put("totalAmount", agreement.totalFinancedAmount)
+                                                put("downPayment", agreement.downPayment)
+                                                put("numberOfInstallments", agreement.numberOfInstallments)
+                                                put("startDate", agreement.startDate)
+                                                put("gracePeriodDays", agreement.gracePeriodDays)
+                                            }
+                                            val response = ApiClient().post(
+                                                ApiConfig.API_PREFIX + "/agreements",
+                                                payload,
+                                                token
+                                            )
+                                            launch(Dispatchers.Main) {
+                                                if (response.isSuccess) {
+                                                    database.agreementDao().insertAgreement(agreement)
+                                                    database.installmentDao().insertInstallments(installments)
+                                                    lockManager.syncFinancingProtection(agreement.status)
+                                                    navController.popBackStack()
+                                                } else {
+                                                    android.widget.Toast.makeText(
+                                                        this@MainActivity,
+                                                        response.errorMessage ?: "Agreement creation failed.",
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
                                         }
                                     }
                                 },
