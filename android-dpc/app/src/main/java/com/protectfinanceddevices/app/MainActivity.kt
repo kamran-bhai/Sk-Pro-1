@@ -1076,6 +1076,31 @@ class MainActivity : ComponentActivity() {
                                 publicKeySnippet =
                                     publicKeySnippet,
 
+                                usbDebuggingBlocked =
+                                    lockManager.isRestrictionEnabled(
+                                        android.os.UserManager.DISALLOW_DEBUGGING_FEATURES
+                                    ),
+
+                                factoryResetBlocked =
+                                    lockManager.isRestrictionEnabled(
+                                        android.os.UserManager.DISALLOW_FACTORY_RESET
+                                    ),
+
+                                uninstallBlocked =
+                                    lockManager.isUninstallBlocked(),
+
+                                onUsbDebuggingBlockedChange = { enabled ->
+                                    lockManager.setDebuggingBlocked(enabled)
+                                },
+
+                                onFactoryResetBlockedChange = { enabled ->
+                                    lockManager.setFactoryResetBlocked(enabled)
+                                },
+
+                                onUninstallBlockedChange = { enabled ->
+                                    lockManager.setUninstallBlocked(enabled)
+                                },
+
                                 onBack = {
                                     navController.popBackStack()
                                 }
