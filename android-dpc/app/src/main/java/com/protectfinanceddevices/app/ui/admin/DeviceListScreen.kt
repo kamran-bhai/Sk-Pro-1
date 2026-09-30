@@ -25,6 +25,7 @@ import com.protectfinanceddevices.app.ui.theme.*
 fun DeviceListScreen(
     devices: List<DeviceEntity>,
     onDeviceClick: (String) -> Unit,
+    onAddDevice: () -> Unit,
     onBack: () -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -58,10 +59,19 @@ fun DeviceListScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    IconButton(onClick = onAddDevice) {
+                        Icon(
+                            Icons.Default.AddToQueue,
+                            contentDescription = "Add Device"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Slate900,
                     titleContentColor = Slate100,
-                    navigationIconContentColor = Slate100
+                    navigationIconContentColor = Slate100,
+                    actionIconContentColor = Slate100
                 )
             )
         },
@@ -73,6 +83,20 @@ fun DeviceListScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onAddDevice,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Default.AddToQueue,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Device")
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Search Bar
@@ -122,7 +146,25 @@ fun DeviceListScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No financed devices matching criteria.", color = Slate400)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "No financed devices matching criteria.",
+                            color = Slate400
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(onClick = onAddDevice) {
+                            Icon(
+                                Icons.Default.AddToQueue,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Add Device")
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
