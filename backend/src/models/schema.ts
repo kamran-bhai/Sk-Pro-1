@@ -118,6 +118,8 @@ export interface AgreementRecord {
   startDate: string;
   nextDueDate: string;
   status: 'ACTIVE' | 'PAID' | 'OVERDUE' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InstallmentRecord {
@@ -137,10 +139,11 @@ export interface PaymentRecord {
   agreementId: string;
   installmentId: string;
   amount: number;
-  paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MOBILE_MONEY';
+  paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'POS';
   transactionReference: string;
-  status: 'SUCCESS' | 'FAILED' | 'PENDING';
-  processedAt: string;
+  receivedBy: string;
+  receiptNotes?: string;
+  createdAt: string;
 }
 
 export interface CommandRecord {
