@@ -17,11 +17,12 @@ import kotlinx.coroutines.launch
         DeviceEntity::class,
         AgreementEntity::class,
         InstallmentEntity::class,
+        PaymentEntity::class,
         AlertEntity::class,
         DeviceCommandEntity::class,
         DeviceEnrollmentEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
     abstract fun agreementDao(): AgreementDao
     abstract fun installmentDao(): InstallmentDao
+    abstract fun paymentDao(): PaymentDao
     abstract fun alertDao(): AlertDao
     abstract fun deviceCommandDao(): DeviceCommandDao
     abstract fun deviceEnrollmentDao(): DeviceEnrollmentDao
@@ -56,7 +58,6 @@ abstract class AppDatabase : RoomDatabase() {
         private class DatabaseCallback : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // Seed initial data for immediate Phase 1 demonstration
                 INSTANCE?.let { database ->
                     CoroutineScope(Dispatchers.IO).launch {
                         seedInitialData(database)
@@ -144,7 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
                 paidInstallments = 1,
                 remainingInstallments = 9,
                 startDate = "2026-07-01",
-                nextDueDate = "2026-09-01", // overdue
+                nextDueDate = "2026-09-01",
                 gracePeriodDays = 5,
                 status = "OVERDUE"
             )
