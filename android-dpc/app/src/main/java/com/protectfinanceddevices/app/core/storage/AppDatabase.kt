@@ -18,11 +18,12 @@ import kotlinx.coroutines.launch
         AgreementEntity::class,
         InstallmentEntity::class,
         PaymentEntity::class,
+        AuditLogEntity::class,
         AlertEntity::class,
         DeviceCommandEntity::class,
         DeviceEnrollmentEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun agreementDao(): AgreementDao
     abstract fun installmentDao(): InstallmentDao
     abstract fun paymentDao(): PaymentDao
+    abstract fun auditLogDao(): AuditLogDao
     abstract fun alertDao(): AlertDao
     abstract fun deviceCommandDao(): DeviceCommandDao
     abstract fun deviceEnrollmentDao(): DeviceEnrollmentDao
