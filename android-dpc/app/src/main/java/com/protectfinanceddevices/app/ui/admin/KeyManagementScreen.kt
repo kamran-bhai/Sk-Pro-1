@@ -191,7 +191,7 @@ fun KeyManagementScreen(
             }
 
             if (keys.isEmpty() && !busy) {
-                item { Text("No control keys found.", color = Slate500) }
+                item { Text("No control keys found.", color = Slate400) }
             }
 
             items(keys, key = { it.id }) { key ->
