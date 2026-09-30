@@ -859,19 +859,53 @@ class MainActivity : ComponentActivity() {
                             NewCustomerScreen(
 
                                 onSaveCustomer = { customer ->
-
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
-
-                                        database
-                                            .customerDao()
-                                            .insertCustomer(customer)
-
-                                        launch(
-                                            Dispatchers.Main
-                                        ) {
-                                            navController.popBackStack()
+                                    val token = authSessionStore.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        navController.navigate(NavRoutes.AdminLogin.route)
+                                    } else {
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            val payload = JSONObject().apply {
+                                                put("fullName", customer.fullName)
+                                                put("phoneNumber", customer.phoneNumber)
+                                                put("email", customer.email ?: "")
+                                                put("address", customer.address ?: "")
+                                                put("nationalIdMasked", customer.nationalIdMasked ?: "")
+                                            }
+                                            val response = ApiClient().post(
+                                                ApiConfig.API_PREFIX + "/customers",
+                                                payload,
+                                                token
+                                            )
+                                            launch(Dispatchers.Main) {
+                                                if (response.isSuccess) {
+                                                    val data = response.data?.optJSONObject("data")
+                                                    if (data != null) {
+                                                        database.customerDao().insertCustomer(
+                                                            customer.copy(
+                                                                id = data.optString("id", customer.id),
+                                                                fullName = data.optString("fullName", customer.fullName),
+                                                                phoneNumber = data.optString("phoneNumber", customer.phoneNumber),
+                                                                email = data.optString("email").ifBlank { null },
+                                                                address = data.optString("address").ifBlank { null },
+                                                                nationalIdMasked = data.optString("nationalIdMasked").ifBlank { null }
+                                                            )
+                                                        )
+                                                        navController.popBackStack()
+                                                    } else {
+                                                        android.widget.Toast.makeText(
+                                                            this@MainActivity,
+                                                            "Server returned an invalid customer record.",
+                                                            android.widget.Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    android.widget.Toast.makeText(
+                                                        this@MainActivity,
+                                                        response.errorMessage ?: "Customer creation failed.",
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -897,19 +931,54 @@ class MainActivity : ComponentActivity() {
                                 customers = customers,
 
                                 onSaveDevice = { device ->
-
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
-
-                                        database
-                                            .deviceDao()
-                                            .insertDevice(device)
-
-                                        launch(
-                                            Dispatchers.Main
-                                        ) {
-                                            navController.popBackStack()
+                                    val token = authSessionStore.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        navController.navigate(NavRoutes.AdminLogin.route)
+                                    } else {
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            val payload = JSONObject().apply {
+                                                put("manufacturer", device.manufacturer)
+                                                put("model", device.model)
+                                                put("brand", device.manufacturer)
+                                            }
+                                            val response = ApiClient().post(
+                                                ApiConfig.API_PREFIX + "/devices",
+                                                payload,
+                                                token
+                                            )
+                                            launch(Dispatchers.Main) {
+                                                if (response.isSuccess) {
+                                                    val data = response.data?.optJSONObject("data")
+                                                    if (data != null) {
+                                                        database.deviceDao().insertDevice(
+                                                            device.copy(
+                                                                id = data.optString("id", device.id),
+                                                                enrollmentStatus = "UNENROLLED",
+                                                                managementMode = "UNMANAGED",
+                                                                enrollmentPublicKey = "",
+                                                                lastSeenTimestamp = 0L,
+                                                                batteryPercent = 0,
+                                                                isOnline = false,
+                                                                simCarrier = null,
+                                                                usbDebuggingActive = false
+                                                            )
+                                                        )
+                                                        navController.popBackStack()
+                                                    } else {
+                                                        android.widget.Toast.makeText(
+                                                            this@MainActivity,
+                                                            "Server returned an invalid device record.",
+                                                            android.widget.Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    android.widget.Toast.makeText(
+                                                        this@MainActivity,
+                                                        response.errorMessage ?: "Device registration failed.",
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
                                         }
                                     }
                                 },
