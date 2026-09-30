@@ -95,6 +95,7 @@ export class FinanceController {
       downPayment = 0,
       numberOfInstallments,
       startDate = new Date().toISOString().split('T')[0],
+      firstDueDate,
       gracePeriodDays = 5
     } = req.body;
 
@@ -149,9 +150,19 @@ export class FinanceController {
     const financedAmount = +(total - down).toFixed(2);
     const monthlyInstallment = Math.floor((financedAmount / tenure) * 100) / 100;
     
-    // First due date: 1 month from start
-    const firstDue = new Date(startDate);
-    firstDue.setMonth(firstDue.getMonth() + 1);
+    // Use the requested first due date when supplied; otherwise default to one month after start.
+    const firstDue = firstDueDate ? new Date(firstDueDate) : new Date(startDate);
+    if (!firstDueDate) {
+      firstDue.setMonth(firstDue.getMonth() + 1);
+    }
+    if (Number.isNaN(firstDue.getTime())) {
+      res.status(400).json({
+        success: false,
+        error: 'VALIDATION_FAILED',
+        message: 'firstDueDate must be a valid date'
+      });
+      return;
+    }
     const nextDueDate = firstDue.toISOString().split('T')[0];
 
     const agreementId = `agr-${crypto.randomBytes(3).toString('hex')}`;
@@ -213,7 +224,7 @@ export class FinanceController {
       data: {
         agreement: newAgreement,
         installmentsCount: schedule.length,
-        schedulePreview: schedule.slice(0, 3)
+        schedule
       }
     });
   }
