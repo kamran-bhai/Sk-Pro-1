@@ -1,7 +1,5 @@
 package com.protectfinanceddevices.app.ui.customer
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,8 +28,6 @@ fun CustomerHomeScreen(
     onSimulateLock: () -> Unit,
     onViewDeviceStatus: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -83,7 +79,7 @@ fun CustomerHomeScreen(
                             Column {
                                 Text("FINANCING STATUS", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
                                 Text(
-                                    text = agreement?.status ?: "ACTIVE",
+                                    text = agreement?.status ?: "NO AGREEMENT",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (agreement?.status == "OVERDUE") AmberWarning else EmeraldGreen
@@ -95,7 +91,7 @@ fun CustomerHomeScreen(
                                     .background(EmeraldGreen.copy(alpha = 0.2f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("In Good Standing", color = EmeraldGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(if (agreement?.status == "ACTIVE") "In Good Standing" else "Review Required", color = if (agreement?.status == "ACTIVE") EmeraldGreen else AmberWarning, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -104,15 +100,15 @@ fun CustomerHomeScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
                                 Text("Next Due Date", color = Slate400, fontSize = 12.sp)
-                                Text(agreement?.nextDueDate ?: "2026-10-15", color = Slate100, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(agreement?.nextDueDate ?: "—", color = Slate100, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Column {
                                 Text("Monthly Installment", color = Slate400, fontSize = 12.sp)
-                                Text("$${agreement?.installmentAmount ?: 91.66}", color = Slate100, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("${agreement?.installmentAmount ?: 0.0}", color = Slate100, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                             Column {
                                 Text("Remaining", color = Slate400, fontSize = 12.sp)
-                                Text("$${agreement?.remainingAmount ?: 733.33}", color = PrimaryBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("${agreement?.remainingAmount ?: 0.0}", color = PrimaryBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -170,21 +166,12 @@ fun CustomerHomeScreen(
                         Text("NEED ASSISTANCE OR PAYMENT HELP?", color = Slate100, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_DIAL).apply {
-                                    data = Uri.parse("tel:18005553462")
-                                }
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Call Financing Support: 1-800-555-FINANCE")
-                        }
+                        Text(
+                            "Use the support contact provided in your financing agreement. This build does not embed a fictional support number.",
+                            color = Slate400,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -196,7 +183,7 @@ fun CustomerHomeScreen(
                         ) {
                             Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Preview Device Restricted Screen")
+                            Text("Preview Device Restricted Screen (Demo)")
                         }
                     }
                 }
