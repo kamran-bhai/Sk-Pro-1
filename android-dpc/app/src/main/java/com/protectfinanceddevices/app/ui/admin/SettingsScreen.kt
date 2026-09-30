@@ -21,11 +21,14 @@ fun SettingsScreen(
     isDeviceAdminActive: Boolean,
     isKeystoreHardwareBacked: Boolean,
     publicKeySnippet: String,
+    usbDebuggingBlocked: Boolean,
+    factoryResetBlocked: Boolean,
+    uninstallBlocked: Boolean,
+    onUsbDebuggingBlockedChange: (Boolean) -> Unit,
+    onFactoryResetBlockedChange: (Boolean) -> Unit,
+    onUninstallBlockedChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
-    var usbDebuggingBlocked by remember { mutableStateOf(true) }
-    var factoryResetBlocked by remember { mutableStateOf(true) }
-    var uninstallBlocked by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -146,7 +149,7 @@ fun SettingsScreen(
                             }
                             Switch(
                                 checked = usbDebuggingBlocked,
-                                onCheckedChange = { usbDebuggingBlocked = it },
+                                onCheckedChange = onUsbDebuggingBlockedChange,
                                 enabled = isDeviceOwner
                             )
                         }
@@ -164,7 +167,7 @@ fun SettingsScreen(
                             }
                             Switch(
                                 checked = factoryResetBlocked,
-                                onCheckedChange = { factoryResetBlocked = it },
+                                onCheckedChange = onFactoryResetBlockedChange,
                                 enabled = isDeviceOwner
                             )
                         }
@@ -182,7 +185,7 @@ fun SettingsScreen(
                             }
                             Switch(
                                 checked = uninstallBlocked,
-                                onCheckedChange = { uninstallBlocked = it },
+                                onCheckedChange = onUninstallBlockedChange,
                                 enabled = isDeviceOwner
                             )
                         }
