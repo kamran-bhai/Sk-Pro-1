@@ -801,6 +801,48 @@ class MainActivity : ComponentActivity() {
 
                         /*
                          * =====================================================
+                         * 7. CREATE FINANCING AGREEMENT
+                         * =====================================================
+                         */
+
+                        composable(
+                            NavRoutes.CreateAgreement.route
+                        ) {
+
+                            CreateAgreementScreen(
+
+                                customers = customers,
+
+                                devices = devices,
+
+                                onSaveAgreement = { agreement, installments ->
+
+                                    lifecycleScope.launch(
+                                        Dispatchers.IO
+                                    ) {
+
+                                        database
+                                            .agreementDao()
+                                            .insertAgreement(agreement)
+
+                                        database
+                                            .installmentDao()
+                                            .insertInstallments(installments)
+
+                                        launch(Dispatchers.Main) {
+                                            navController.popBackStack()
+                                        }
+                                    }
+                                },
+
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        /*
+                         * =====================================================
                          * 7. FINANCING
                          * =====================================================
                          */
@@ -828,7 +870,7 @@ class MainActivity : ComponentActivity() {
                                 installments = allInstallments,
 
                                 onCreateAgreement = {
-                                    navController.navigate(NavRoutes.Financing.route)
+                                    navController.navigate(NavRoutes.CreateAgreement.route)
                                 },
 
                                 onRecordPayment = { installmentId ->
