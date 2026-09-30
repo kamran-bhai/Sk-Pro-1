@@ -9,7 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +30,18 @@ fun AdminDashboardScreen(
     onNavigateToDeviceDetails: (String) -> Unit,
     onNavigateToDevices: () -> Unit,
     onNavigateToAlerts: () -> Unit,
-    onNavigateToFinancing: () -> Unit
+    onNavigateToFinancing: () -> Unit,
+
+    // Phase 1 menu actions
+    onNewCustomer: () -> Unit,
+    onCustomerList: () -> Unit,
+    onAddDevice: () -> Unit,
+    onKeyManagement: () -> Unit,
+    onHistory: () -> Unit,
+    onSupport: () -> Unit,
+    onProfile: () -> Unit,
+    onTransferPoint: () -> Unit,
+    onRetailerList: () -> Unit
 ) {
     val totalDevices = devices.size
     val activeDevices = devices.count { it.enrollmentStatus == "ACTIVE" }
@@ -44,13 +55,14 @@ fun AdminDashboardScreen(
                 title = {
                     Column {
                         Text(
-                            text = "PROTECT FINANCED DEVICES",
+                            text = "SK PRO",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
+                            fontSize = 18.sp,
                             letterSpacing = 1.sp
                         )
+
                         Text(
-                            text = "Enterprise Hardware & Ledger Management",
+                            text = "Device & Finance Management",
                             style = MaterialTheme.typography.labelSmall,
                             color = Slate400
                         )
@@ -58,13 +70,27 @@ fun AdminDashboardScreen(
                 },
                 actions = {
                     IconButton(onClick = onNavigateToAlerts) {
-                        BadgedBox(badge = {
-                            if (unackAlerts > 0) {
-                                Badge(containerColor = CrimsonRed) { Text("$unackAlerts") }
+                        BadgedBox(
+                            badge = {
+                                if (unackAlerts > 0) {
+                                    Badge(containerColor = CrimsonRed) {
+                                        Text("$unackAlerts")
+                                    }
+                                }
                             }
-                        }) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Alerts")
+                        ) {
+                            Icon(
+                                Icons.Default.Notifications,
+                                contentDescription = "Alerts"
+                            )
                         }
+                    }
+
+                    IconButton(onClick = onProfile) {
+                        Icon(
+                            Icons.Default.AccountCircle,
+                            contentDescription = "Profile"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -75,23 +101,127 @@ fun AdminDashboardScreen(
         },
         containerColor = Slate950
     ) { padding ->
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Metrics Overview Grid
+
+            // ---------------------------------------------------------
+            // MAIN MENU
+            // ---------------------------------------------------------
+            item {
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "MAIN MENU",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate400,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MenuCard(
+                            title = "New Customer",
+                            icon = Icons.Default.PersonAdd,
+                            modifier = Modifier.weight(1f),
+                            onClick = onNewCustomer
+                        )
+
+                        MenuCard(
+                            title = "Customer List",
+                            icon = Icons.Default.People,
+                            modifier = Modifier.weight(1f),
+                            onClick = onCustomerList
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MenuCard(
+                            title = "Add Device",
+                            icon = Icons.Default.AddToQueue,
+                            modifier = Modifier.weight(1f),
+                            onClick = onAddDevice
+                        )
+
+                        MenuCard(
+                            title = "Key Management",
+                            icon = Icons.Default.Key,
+                            modifier = Modifier.weight(1f),
+                            onClick = onKeyManagement
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MenuCard(
+                            title = "History",
+                            icon = Icons.Default.History,
+                            modifier = Modifier.weight(1f),
+                            onClick = onHistory
+                        )
+
+                        MenuCard(
+                            title = "Support",
+                            icon = Icons.Default.SupportAgent,
+                            modifier = Modifier.weight(1f),
+                            onClick = onSupport
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        MenuCard(
+                            title = "Transfer Point",
+                            icon = Icons.Default.SwapHoriz,
+                            modifier = Modifier.weight(1f),
+                            onClick = onTransferPoint
+                        )
+
+                        MenuCard(
+                            title = "Retailer List",
+                            icon = Icons.Default.Store,
+                            modifier = Modifier.weight(1f),
+                            onClick = onRetailerList
+                        )
+                    }
+                }
+            }
+
+            // ---------------------------------------------------------
+            // PORTFOLIO OVERVIEW
+            // ---------------------------------------------------------
             item {
                 Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
                     text = "PORTFOLIO OVERVIEW",
                     style = MaterialTheme.typography.labelSmall,
                     color = Slate400,
                     fontWeight = FontWeight.Bold
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -104,6 +234,7 @@ fun AdminDashboardScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToDevices
                     )
+
                     MetricCard(
                         title = "ACTIVE",
                         value = "$activeDevices",
@@ -113,7 +244,9 @@ fun AdminDashboardScreen(
                         onClick = onNavigateToDevices
                     )
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -126,6 +259,7 @@ fun AdminDashboardScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToFinancing
                     )
+
                     MetricCard(
                         title = "LOCKED",
                         value = "$lockedDevices",
@@ -137,42 +271,62 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // High Priority Attention Banner
+            // ---------------------------------------------------------
+            // ALERT
+            // ---------------------------------------------------------
             if (unackAlerts > 0) {
                 item {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onNavigateToAlerts() },
-                        colors = CardDefaults.cardColors(containerColor = CrimsonDark.copy(alpha = 0.35f)),
+                        colors = CardDefaults.cardColors(
+                            containerColor = CrimsonDark.copy(alpha = 0.35f)
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = CrimsonRed)
+                            Icon(
+                                Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = CrimsonRed
+                            )
+
                             Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Text(
                                     text = "$unackAlerts Critical Alert(s) Require Action",
                                     color = Slate100,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 14.sp
                                 )
+
                                 Text(
-                                    text = "Overdue default and SIM change events detected",
+                                    text = "Overdue and device events detected",
                                     color = Slate400,
                                     fontSize = 12.sp
                                 )
                             }
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Slate400)
+
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = Slate400
+                            )
                         }
                     }
                 }
             }
 
-            // Financed Devices Section Header
+            // ---------------------------------------------------------
+            // RECENT DEVICES
+            // ---------------------------------------------------------
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -185,17 +339,23 @@ fun AdminDashboardScreen(
                         color = Slate400,
                         fontWeight = FontWeight.Bold
                     )
+
                     TextButton(onClick = onNavigateToDevices) {
-                        Text("View All ($totalDevices)", color = PrimaryBlue, fontSize = 12.sp)
+                        Text(
+                            text = "View All ($totalDevices)",
+                            color = PrimaryBlue,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
 
-            // Device Items
             items(devices.take(4)) { device ->
                 DeviceRowItem(
                     device = device,
-                    onClick = { onNavigateToDeviceDetails(device.id) }
+                    onClick = {
+                        onNavigateToDeviceDetails(device.id)
+                    }
                 )
             }
 
@@ -205,6 +365,56 @@ fun AdminDashboardScreen(
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// MAIN MENU CARD
+// ---------------------------------------------------------------------
+
+@Composable
+fun MenuCard(
+    title: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(82.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = Slate900
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = PrimaryBlue,
+                modifier = Modifier.size(25.dp)
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = title,
+                color = Slate100,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// METRIC CARD
+// ---------------------------------------------------------------------
 
 @Composable
 fun MetricCard(
@@ -217,23 +427,49 @@ fun MetricCard(
 ) {
     Card(
         modifier = modifier.clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Slate900),
+        colors = CardDefaults.cardColors(
+            containerColor = Slate900
+        ),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier.padding(14.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = title, fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
-                Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                Text(
+                    text = title,
+                    fontSize = 11.sp,
+                    color = Slate400,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
             }
+
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Slate100)
+
+            Text(
+                text = value,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Slate100
+            )
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// DEVICE ROW
+// ---------------------------------------------------------------------
 
 @Composable
 fun DeviceRowItem(
@@ -244,7 +480,9 @@ fun DeviceRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Slate900),
+        colors = CardDefaults.cardColors(
+            containerColor = Slate900
+        ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -258,26 +496,42 @@ fun DeviceRowItem(
                     .background(Slate800),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Smartphone, contentDescription = null, tint = PrimaryBlue)
+                Icon(
+                    Icons.Default.Smartphone,
+                    contentDescription = null,
+                    tint = PrimaryBlue
+                )
             }
+
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     text = "${device.manufacturer} ${device.model}",
                     color = Slate100,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
+
                 Text(
                     text = "ID: ${device.id} • ${device.managementMode}",
                     color = Slate400,
                     fontSize = 12.sp
                 )
             }
-            StatusBadge(status = device.enrollmentStatus)
+
+            StatusBadge(
+                status = device.enrollmentStatus
+            )
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// STATUS BADGE
+// ---------------------------------------------------------------------
 
 @Composable
 fun StatusBadge(status: String) {
@@ -287,12 +541,21 @@ fun StatusBadge(status: String) {
         "LOCKED" -> CrimsonRed.copy(alpha = 0.2f) to CrimsonRed
         else -> Slate700 to Slate200
     }
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
             .background(bg)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(
+                horizontal = 8.dp,
+                vertical = 4.dp
+            )
     ) {
-        Text(text = status, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = status,
+            color = fg,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
