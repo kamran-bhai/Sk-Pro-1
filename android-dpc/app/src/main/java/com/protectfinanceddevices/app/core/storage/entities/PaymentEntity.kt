@@ -8,7 +8,6 @@ import androidx.room.PrimaryKey
     tableName = "payments",
     indices = [
         Index("agreementId"),
-        Index("installmentId"),
         Index(value = ["installmentId"], unique = true)
     ]
 )
