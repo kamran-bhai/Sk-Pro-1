@@ -7,6 +7,7 @@ import { CommandController } from './controllers/command.controller.js';
 import { HeartbeatController } from './controllers/heartbeat.controller.js';
 import { FinanceController } from './controllers/finance.controller.js';
 import { AuditController } from './controllers/audit.controller.js';
+import { DeviceControlKeyController } from './controllers/device-control-key.controller.js';
 import { authenticateToken, requireRole } from './middleware/auth.js';
 import { createRateLimiter } from './middleware/rateLimiter.js';
 import { validateRequiredFields } from './middleware/validator.js';
@@ -144,7 +145,7 @@ apiRouter.post(
   EnrollmentController.verifyDeviceAuthentication
 );
 
-// 4. Device Telemetry & Heartbeat Gateway
+// 4. One-key-one-device control-key management\napiRouter.post('/device-control-keys', authenticateToken, requireRole('ADMIN'), DeviceControlKeyController.issueKey);\napiRouter.get('/device-control-keys', authenticateToken, requireRole('ADMIN', 'SUPPORT'), DeviceControlKeyController.listKeys);\napiRouter.post('/device-control-keys/activate', generalLimiter, DeviceControlKeyController.activateKey);\napiRouter.post('/device-control-keys/:id/revoke', authenticateToken, requireRole('ADMIN'), DeviceControlKeyController.revokeKey);\n\n// 4. Device Telemetry & Heartbeat Gateway
 apiRouter.post(
   '/device/heartbeat',
   heartbeatLimiter,
