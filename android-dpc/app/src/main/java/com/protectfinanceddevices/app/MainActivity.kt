@@ -830,6 +830,10 @@ class MainActivity : ComponentActivity() {
                                             .installmentDao()
                                             .insertInstallments(installments)
 
+                                        // Newly created financing starts protected when the
+                                        // device is actually managed as Device Owner.
+                                        lockManager.syncFinancingProtection(agreement.status)
+
                                         launch(Dispatchers.Main) {
                                             navController.popBackStack()
                                         }
@@ -987,22 +991,22 @@ class MainActivity : ComponentActivity() {
                                                     else -> "ACTIVE"
                                                 }
 
+                                            val updatedAgreement = agreement.copy(
+                                                remainingAmount = remainingAmount,
+                                                paidInstallments = paidInstallments,
+                                                remainingInstallments = unpaidInstallments.size,
+                                                nextDueDate = nextDueDate,
+                                                status = updatedStatus
+                                            )
+
                                             database
                                                 .agreementDao()
-                                                .updateAgreement(
-                                                    agreement.copy(
-                                                        remainingAmount =
-                                                            remainingAmount,
-                                                        paidInstallments =
-                                                            paidInstallments,
-                                                        remainingInstallments =
-                                                            unpaidInstallments.size,
-                                                        nextDueDate =
-                                                            nextDueDate,
-                                                        status =
-                                                            updatedStatus
-                                                    )
-                                                )
+                                                .updateAgreement(updatedAgreement)
+
+                                            // Protection is released only when the agreement
+                                            // is fully completed; paying one installment is
+                                            // not enough to remove device-management policy.
+                                            lockManager.syncFinancingProtection(updatedAgreement.status)
                                         }
                                     }
                                 },
