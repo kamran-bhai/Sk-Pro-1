@@ -25,7 +25,7 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
 
     private val sanitizedBaseUrl: String = if (baseUrl.endsWith("/")) baseUrl.dropLast(1) else baseUrl
 
-    suspend fun get(path: String, queryParams: Map<String, String> = emptyMap()): ApiResponse<JSONObject> =
+    suspend fun get(path: String, queryParams: Map<String, String> = emptyMap(), accessToken: String? = null): ApiResponse<JSONObject> =
         withContext(Dispatchers.IO) {
             var urlString = "$sanitizedBaseUrl$path"
             if (queryParams.isNotEmpty()) {
@@ -39,6 +39,7 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
                 conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     setRequestProperty("Accept", "application/json")
+                    accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
                     connectTimeout = 15000
                     readTimeout = 15000
                 }
@@ -62,7 +63,7 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
             }
         }
 
-    suspend fun post(path: String, payload: JSONObject): ApiResponse<JSONObject> =
+    suspend fun post(path: String, payload: JSONObject, accessToken: String? = null): ApiResponse<JSONObject> =
         withContext(Dispatchers.IO) {
             val urlString = "$sanitizedBaseUrl$path"
             var conn: HttpURLConnection? = null
@@ -72,6 +73,7 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
                     requestMethod = "POST"
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     setRequestProperty("Accept", "application/json")
+                    accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
                     connectTimeout = 15000
                     readTimeout = 15000
                     doOutput = true
