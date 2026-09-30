@@ -9,55 +9,51 @@ import android.os.UserManager
 import android.util.Log
 
 /**
- * Manages device policy enforcement, lock states, and restrictions.
- * Differentiates strictly between:
- * 1. Device Owner (full enterprise lockTask and system policy authority)
- * 2. Device Admin (lockNow and password compliance only)
- * 3. Normal App (informational only)
+ * Manages device policy enforcement, lock states, and financing protection.
+ *
+ * Capability levels:
+ * 1. Device Owner / fully managed: enterprise device policies and lock-task.
+ * 2. Device Admin: legacy lockNow() only; no factory-reset prevention.
+ * 3. Normal app: informational only.
+ *
+ * Factory-reset protection is reported as unsupported when the Android
+ * version/device does not expose the supported enterprise API. This class
+ * never pretends that a normal APK can block recovery/firmware wipes.
  */
 class DeviceLockManager(private val context: Context) {
 
-    private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    private val adminComponent: ComponentName = FinancedDeviceAdminReceiver.getComponentName(context)
+    private val dpm =
+        context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
 
-    fun isDeviceAdminActive(): Boolean {
-        return dpm.isAdminActive(adminComponent)
-    }
+    private val adminComponent: ComponentName =
+        FinancedDeviceAdminReceiver.getComponentName(context)
 
-    fun isDeviceOwner(): Boolean {
-        return dpm.isDeviceOwnerApp(context.packageName)
-    }
+    fun isDeviceAdminActive(): Boolean = dpm.isAdminActive(adminComponent)
 
-    /**
-     * Puts device in restricted lock mode.
-     * If Device Owner: whitelists our package for LockTaskMode and locks immediately.
-     * If Device Admin: executes standard lockNow().
-     */
+    fun isDeviceOwner(): Boolean = dpm.isDeviceOwnerApp(context.packageName)
+
     fun enforceLockState(activity: Activity? = null) {
         if (isDeviceOwner()) {
             Log.i(TAG, "Enforcing enterprise lock as Device Owner")
-            // Whitelist this app for lock task (kiosk) mode
             dpm.setLockTaskPackages(adminComponent, arrayOf(context.packageName))
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 dpm.setLockTaskFeatures(
                     adminComponent,
-                    DevicePolicyManager.LOCK_TASK_FEATURE_NONE or DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
+                    DevicePolicyManager.LOCK_TASK_FEATURE_NONE or
+                        DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
                 )
             }
-            
+
             activity?.startLockTask()
         } else if (isDeviceAdminActive()) {
             Log.i(TAG, "Enforcing standard lockNow as active Device Admin")
             dpm.lockNow()
         } else {
-            Log.w(TAG, "Cannot force system lock: App does not have Device Admin or Device Owner rights")
+            Log.w(TAG, "Cannot force system lock: no Device Admin or Device Owner rights")
         }
     }
 
-    /**
-     * Releases device from restricted lock mode.
-     */
     fun releaseLockState(activity: Activity? = null) {
         if (isDeviceOwner()) {
             Log.i(TAG, "Releasing lock task mode as Device Owner")
@@ -67,12 +63,19 @@ class DeviceLockManager(private val context: Context) {
     }
 
     /**
-     * Applies enterprise device protection restrictions (Factory reset protection, safe boot disable, debug disable).
-     * Only works when app is Device Owner.
+     * Applies enterprise protection while a financed agreement is active.
+     *
+     * DISALLOW_FACTORY_RESET covers the supported Android settings reset path.
+     * FactoryResetProtectionPolicy (API 30+) adds the Android enterprise FRP
+     * layer on devices that support it.
+     *
+     * Neither mechanism guarantees blocking a recovery/firmware wipe on every
+     * Android device. Persistent post-reset enforcement requires supported
+     * enterprise provisioning such as zero-touch/OEM infrastructure.
      */
     fun applyProtectionRestrictions(enable: Boolean) {
         if (!isDeviceOwner()) {
-            Log.w(TAG, "applyProtectionRestrictions ignored: App is not Device Owner")
+            Log.w(TAG, "applyProtectionRestrictions ignored: not Device Owner")
             return
         }
 
@@ -91,9 +94,14 @@ class DeviceLockManager(private val context: Context) {
             }
         }
 
-        // Prevent uninstallation while financed
         dpm.setUninstallBlocked(adminComponent, context.packageName, enable)
-        Log.i(TAG, "Protection restrictions applied: enabled=$enable")
+
+        val frpResult = setFactoryResetProtectionEnabled(enable)
+
+        Log.i(
+            TAG,
+            "Protection restrictions applied: enabled=$enable, frpResult=$frpResult"
+        )
     }
 
     fun isRestrictionEnabled(restriction: String): Boolean {
@@ -102,20 +110,106 @@ class DeviceLockManager(private val context: Context) {
     }
 
     fun setFactoryResetBlocked(enabled: Boolean) {
-        if (!isDeviceOwner()) return
+        if (!isDeviceOwner()) {
+            Log.w(TAG, "setFactoryResetBlocked ignored: not Device Owner")
+            return
+        }
+
         if (enabled) {
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+            dpm.addUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_FACTORY_RESET
+            )
         } else {
-            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+            dpm.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_FACTORY_RESET
+            )
+        }
+
+        setFactoryResetProtectionEnabled(enabled)
+    }
+
+    /**
+     * Applies the Android enterprise FRP policy on API 30+.
+     * Returns false when the device/management mode does not support it.
+     */
+    fun setFactoryResetProtectionEnabled(enabled: Boolean): Boolean {
+        if (!isDeviceOwner()) {
+            Log.w(TAG, "FRP policy ignored: not Device Owner")
+            return false
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            Log.i(TAG, "FRP policy API unavailable before Android 11")
+            return false
+        }
+
+        return try {
+            val policy =
+                DevicePolicyManager.FactoryResetProtectionPolicy
+                    .Builder()
+                    .setFactoryResetProtectionEnabled(enabled)
+                    .build()
+
+            dpm.setFactoryResetProtectionPolicy(adminComponent, policy)
+
+            Log.i(TAG, "Factory Reset Protection policy applied: enabled=$enabled")
+            true
+        } catch (e: UnsupportedOperationException) {
+            Log.w(
+                TAG,
+                "This device does not support enterprise FRP policy: ${e.message}"
+            )
+            false
+        } catch (e: SecurityException) {
+            Log.w(
+                TAG,
+                "Enterprise FRP policy not permitted for this management mode: ${e.message}"
+            )
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply enterprise FRP policy", e)
+            false
+        }
+    }
+
+    /**
+     * Capability detection only. This does not claim that recovery firmware
+     * can be made impossible to wipe.
+     */
+    fun isFactoryResetProtectionSupported(): Boolean {
+        if (!isDeviceOwner()) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+
+        return try {
+            dpm.getFactoryResetProtectionPolicy(adminComponent)
+            true
+        } catch (e: UnsupportedOperationException) {
+            false
+        } catch (e: SecurityException) {
+            false
+        } catch (e: Exception) {
+            false
         }
     }
 
     fun setDebuggingBlocked(enabled: Boolean) {
-        if (!isDeviceOwner()) return
+        if (!isDeviceOwner()) {
+            Log.w(TAG, "setDebuggingBlocked ignored: not Device Owner")
+            return
+        }
+
         if (enabled) {
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
+            dpm.addUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_DEBUGGING_FEATURES
+            )
         } else {
-            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
+            dpm.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_DEBUGGING_FEATURES
+            )
         }
     }
 
@@ -125,7 +219,11 @@ class DeviceLockManager(private val context: Context) {
     }
 
     fun setUninstallBlocked(enabled: Boolean) {
-        if (!isDeviceOwner()) return
+        if (!isDeviceOwner()) {
+            Log.w(TAG, "setUninstallBlocked ignored: not Device Owner")
+            return
+        }
+
         dpm.setUninstallBlocked(adminComponent, context.packageName, enabled)
     }
 
