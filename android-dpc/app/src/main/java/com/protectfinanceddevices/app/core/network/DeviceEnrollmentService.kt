@@ -93,7 +93,8 @@ class DeviceEnrollmentService(
             }
 
             val challengeData = challengeResp.data.getJSONObject("data")
-            val nonce = challengeData.getString("nonce")
+            // Backend names the challenge field challengeNonce; keep this contract exact.
+            val nonce = challengeData.getString("challengeNonce")
 
             onProgress("2/4 Accessing hardware-backed EC P-256 keypair in Android Keystore...")
             // Ensure keypair exists inside StrongBox / TEE
@@ -105,12 +106,14 @@ class DeviceEnrollmentService(
             onProgress("4/4 Submitting attestation proof to backend authority...")
             val verifyPath = "${ApiConfig.ENDPOINT_ENROLLMENT_VERIFY}/$enrollmentId/verify"
             val verifyPayload = JSONObject().apply {
-                put("nonce", nonce)
-                put("signature", signature)
+                // Match EnrollmentController.verifyEnrollmentKey() exactly.
+                put("challengeNonce", nonce)
+                put("signedChallenge", signature)
                 put("devicePublicKeyPem", publicKeyPem)
                 put("androidVersion", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                 put("appVersion", ApiConfig.CLIENT_APP_VERSION)
-                put("managementMode", "DEVICE_OWNER")
+                // Do not claim Device Owner unless Android actually grants it.
+                put("managementMode", "UNMANAGED")
             }
 
             val verifyResp = apiClient.post(verifyPath, verifyPayload)
@@ -118,8 +121,18 @@ class DeviceEnrollmentService(
                 return EnrollmentResult.Failure(verifyResp.errorMessage ?: "Cryptographic verification failed on server")
             }
 
+            // Verification only registers the key. Complete the enrollment explicitly.
+            onProgress("5/5 Activating enrollment on server...")
+            val completePath = "${ApiConfig.ENDPOINT_ENROLLMENT_DISCLOSURE}/$enrollmentId/complete"
+            val completeResp = apiClient.post(completePath, JSONObject())
+            if (!completeResp.isSuccess || completeResp.data == null) {
+                return EnrollmentResult.Failure(
+                    completeResp.errorMessage ?: "Cryptographic verification succeeded, but enrollment activation failed"
+                )
+            }
+
             // Save successful enrollment into local Room DB
-            val verifyData = verifyResp.data.getJSONObject("data")
+            val verifyData = completeResp.data.getJSONObject("data")
             val enrObj = verifyData.optJSONObject("enrollment")
 
             val deviceId = enrObj?.optString("deviceId", "dev-hw-local") ?: "dev-hw-local"
@@ -132,7 +145,7 @@ class DeviceEnrollmentService(
                 customerId = customerId,
                 agreementId = agreementId,
                 enrollmentStatus = "ACTIVE",
-                managementMode = "DEVICE_OWNER",
+                managementMode = "UNMANAGED",
                 serverUrl = ApiConfig.DEFAULT_BASE_URL,
                 lastSyncTimestamp = System.currentTimeMillis()
             )
@@ -151,7 +164,7 @@ class DeviceEnrollmentService(
                         manufacturer = Build.MANUFACTURER,
                         androidVersion = "Android ${Build.VERSION.RELEASE}",
                         enrollmentStatus = "ACTIVE",
-                        managementMode = "DEVICE_OWNER",
+                        managementMode = "UNMANAGED",
                         enrollmentPublicKey = publicKeyPem,
                         lastSeenTimestamp = System.currentTimeMillis(),
                         batteryPercent = 100,
@@ -162,7 +175,7 @@ class DeviceEnrollmentService(
                 )
             }
 
-            return EnrollmentResult.Success(enrollmentId, "Device enrollment successfully verified and active.")
+            return EnrollmentResult.Success(enrollmentId, "Device enrollment cryptographically verified and activated.")
         } catch (e: Exception) {
             Log.e(TAG, "Enrollment verification error: ${e.message}", e)
             return EnrollmentResult.Failure(e.message ?: "Enrollment error")
