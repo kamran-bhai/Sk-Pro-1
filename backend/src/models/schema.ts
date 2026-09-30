@@ -185,6 +185,32 @@ export interface AuditRecord {
   ipAddress?: string;
 }
 
+
+
+export interface DeviceControlKeyRecord {
+  id: string;
+  keyHash: string;
+  keyLast4: string;
+  issuedBy?: string;
+  retailerId?: string;
+  deviceId?: string;
+  enrollmentId?: string;
+  status: 'ISSUED' | 'ACTIVATED' | 'SUSPENDED' | 'REVOKED' | 'EXPIRED';
+  expiresAt?: string;
+  activatedAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+}
+
+export interface RetailerAccountRecord {
+  id: string;
+  adminId?: string;
+  businessName: string;
+  phoneNumber?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface DatabaseSchema {
   version: number;
   lastSavedAt: string;
@@ -201,5 +227,7 @@ export interface DatabaseSchema {
   alerts: AlertRecord[];
   auditLogs: AuditRecord[];
   deviceActivities: DeviceActivityRecord[];
+  deviceControlKeys: DeviceControlKeyRecord[];
+  retailerAccounts: RetailerAccountRecord[];
   usedNonces: string[];
 }
