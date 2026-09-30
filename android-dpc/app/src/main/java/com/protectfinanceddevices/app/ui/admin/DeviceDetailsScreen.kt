@@ -34,6 +34,7 @@ fun DeviceDetailsScreen(
     onUnlockDevice: () -> Unit,
     onRequestStatus: () -> Unit,
     onRequestLocation: () -> Unit,
+    onGenerateEnrollment: () -> Unit,
     onBack: () -> Unit
 ) {
     if (device == null) {
@@ -202,6 +203,49 @@ fun DeviceDetailsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Ping Sync")
                             }
+                        }
+                    }
+                }
+            }
+
+            // Enrollment Ticket
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "DEVICE ENROLLMENT",
+                            fontSize = 11.sp,
+                            color = Slate400,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            if (agreement != null) {
+                                "Generate a one-time enrollment code after the financing agreement is ready."
+                            } else {
+                                "Create the financing agreement first. An enrollment ticket is bound to customer, device, and agreement."
+                            },
+                            color = Slate400,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = onGenerateEnrollment,
+                            enabled = agreement != null,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.QrCode2,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Generate Enrollment Code")
                         }
                     }
                 }
