@@ -96,6 +96,39 @@ class DeviceLockManager(private val context: Context) {
         Log.i(TAG, "Protection restrictions applied: enabled=$enable")
     }
 
+    fun isRestrictionEnabled(restriction: String): Boolean {
+        if (!isDeviceOwner()) return false
+        return dpm.getUserRestrictions(adminComponent).getBoolean(restriction, false)
+    }
+
+    fun setFactoryResetBlocked(enabled: Boolean) {
+        if (!isDeviceOwner()) return
+        if (enabled) {
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+        } else {
+            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+        }
+    }
+
+    fun setDebuggingBlocked(enabled: Boolean) {
+        if (!isDeviceOwner()) return
+        if (enabled) {
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
+        } else {
+            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
+        }
+    }
+
+    fun isUninstallBlocked(): Boolean {
+        return isDeviceOwner() &&
+            dpm.isUninstallBlocked(adminComponent, context.packageName)
+    }
+
+    fun setUninstallBlocked(enabled: Boolean) {
+        if (!isDeviceOwner()) return
+        dpm.setUninstallBlocked(adminComponent, context.packageName, enabled)
+    }
+
     companion object {
         private const val TAG = "DeviceLockManager"
     }
