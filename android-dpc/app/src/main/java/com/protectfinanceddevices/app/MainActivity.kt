@@ -933,6 +933,20 @@ class MainActivity : ComponentActivity() {
                                                 .paymentDao()
                                                 .insertPayment(payment)
 
+                                            database
+                                                .auditLogDao()
+                                                .insert(
+                                                    com.protectfinanceddevices.app
+                                                        .core.storage.entities.AuditLogEntity(
+                                                            id = UUID.randomUUID().toString(),
+                                                            actorType = "ADMIN",
+                                                            action = "PAYMENT_RECORDED",
+                                                            entityType = "INSTALLMENT",
+                                                            entityId = installment.id,
+                                                            details = "Payment recorded for agreement ${agreement.id}; amount=${payment.amount}"
+                                                        )
+                                                )
+
                                             val allInstallments =
                                                 database
                                                     .installmentDao()
