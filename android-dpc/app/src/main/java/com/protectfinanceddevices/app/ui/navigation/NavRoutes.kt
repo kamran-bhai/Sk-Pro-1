@@ -18,6 +18,10 @@ sealed class NavRoutes(val route: String) {
 
     object Settings : NavRoutes("settings")
 
+    object AdminLogin : NavRoutes("admin_login")
+
+    object KeyManagement : NavRoutes("key_management")
+
     object CustomerPortal : NavRoutes("customer_portal")
 
     object CustomerDeviceStatus : NavRoutes("customer_device_status")
