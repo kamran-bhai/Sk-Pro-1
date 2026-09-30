@@ -51,6 +51,10 @@ class MainActivity : ComponentActivity() {
         DeviceLockManager(this)
     }
 
+    private val authSessionStore by lazy {
+        com.protectfinanceddevices.app.core.network.AuthSessionStore(this)
+    }
+
     private val enrollmentService by lazy {
         DeviceEnrollmentService(
             keyStoreManager = keyStoreManager,
@@ -330,10 +334,12 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onKeyManagement = {
-
-                                    navController.navigate(
-                                        NavRoutes.Settings.route
-                                    )
+                                    val route = if (authSessionStore.accessToken.isNullOrBlank()) {
+                                        NavRoutes.AdminLogin.route
+                                    } else {
+                                        NavRoutes.KeyManagement.route
+                                    }
+                                    navController.navigate(route)
                                 },
 
                                 onHistory = {
@@ -1121,6 +1127,50 @@ class MainActivity : ComponentActivity() {
 
                                 onBack = {
                                     navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        /*
+                         * =====================================================
+                         * ADMIN AUTHENTICATION
+                         * =====================================================
+                         */
+
+                        composable(
+                            NavRoutes.AdminLogin.route
+                        ) {
+                            AdminLoginScreen(
+                                sessionStore = authSessionStore,
+                                onLoggedIn = {
+                                    navController.navigate(NavRoutes.KeyManagement.route) {
+                                        popUpTo(NavRoutes.AdminLogin.route) { inclusive = true }
+                                    }
+                                },
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        /*
+                         * =====================================================
+                         * CONTROL KEY MANAGEMENT
+                         * =====================================================
+                         */
+
+                        composable(
+                            NavRoutes.KeyManagement.route
+                        ) {
+                            KeyManagementScreen(
+                                sessionStore = authSessionStore,
+                                onBack = {
+                                    navController.popBackStack()
+                                },
+                                onSessionExpired = {
+                                    navController.navigate(NavRoutes.AdminLogin.route) {
+                                        popUpTo(NavRoutes.KeyManagement.route) { inclusive = true }
+                                    }
                                 }
                             )
                         }
