@@ -113,7 +113,6 @@ fun AdminLoginScreen(
                     busy = true
                     error = null
 
-                    androidx.compose.runtime.LaunchedEffect(Unit)
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
