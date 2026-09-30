@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.protectfinanceddevices.app.core.network.ApiClient
 import com.protectfinanceddevices.app.core.network.ApiConfig
 import com.protectfinanceddevices.app.core.network.AuthSessionStore
@@ -213,7 +214,7 @@ fun KeyManagementScreen(
                         Spacer(Modifier.height(8.dp))
                         Text("Device: ${key.deviceId ?: "Not bound"}", color = Slate400)
                         Text("Enrollment: ${key.enrollmentId ?: "Not bound"}", color = Slate400)
-                        key.expiresAt?.let { Text("Expires: $it", color = Slate500) }
+                        key.expiresAt?.let { Text("Expires: $it", color = Slate400) }
 
                         if (key.status == "ISSUED" || key.status == "ACTIVATED") {
                             Spacer(Modifier.height(10.dp))
