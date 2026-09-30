@@ -9,6 +9,8 @@ object ApiConfig {
     const val API_PREFIX = "/api/v1"
 
     // Endpoints
+    const val ENDPOINT_LOGIN = "$API_PREFIX/auth/login"
+    const val ENDPOINT_CONTROL_KEYS = "$API_PREFIX/device-control-keys"
     const val ENDPOINT_ENROLLMENT_DISCLOSURE = "$API_PREFIX/enrollments" // GET /:code
     const val ENDPOINT_ENROLLMENT_CHALLENGE = "$API_PREFIX/enrollments"  // POST /:id/challenge
     const val ENDPOINT_ENROLLMENT_VERIFY = "$API_PREFIX/enrollments"     // POST /:id/verify
