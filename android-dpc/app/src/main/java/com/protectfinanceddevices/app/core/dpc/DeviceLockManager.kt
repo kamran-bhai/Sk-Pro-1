@@ -2,6 +2,7 @@ package com.protectfinanceddevices.app.core.dpc
 
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.app.admin.FactoryResetProtectionPolicy
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
@@ -147,7 +148,7 @@ class DeviceLockManager(private val context: Context) {
 
         return try {
             val policy =
-                DevicePolicyManager.FactoryResetProtectionPolicy
+                FactoryResetProtectionPolicy
                     .Builder()
                     .setFactoryResetProtectionEnabled(enabled)
                     .build()
