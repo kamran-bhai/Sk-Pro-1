@@ -183,35 +183,11 @@ export class FinanceController {
     const schedule = generateInstallmentSchedule(agreementId, total, down, tenure, startDate);
     db.installments.push(...schedule);
 
-    // Create or bind enrollment record for the device
-    let enrollment = db.enrollments.find(e => e.deviceId === deviceId);
-    if (!enrollment) {
-      const code = `ENR-${Math.floor(1000 + Math.random() * 9000)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-      enrollment = {
-        id: `enr-${crypto.randomBytes(3).toString('hex')}`,
-        deviceId,
-        customerId,
-        agreementId,
-        enrollmentCode: code,
-        tokenHash: crypto.createHash('sha256').update(code).digest('hex'),
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        isTokenUsed: true,
-        tokenUsedAt: new Date().toISOString(),
-        devicePublicKeyPem: '-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...\n-----END PUBLIC KEY-----',
-        androidVersion: 'Android 14',
-        appVersion: '1.0.0',
-        managementMode: 'DEVICE_OWNER',
-        enrollmentStatus: 'ACTIVE',
-        isOnline: true,
-        usbDebuggingActive: false,
-        enrolledAt: new Date().toISOString()
-      };
-      db.enrollments.push(enrollment);
-    } else {
-      enrollment.agreementId = agreementId;
-      enrollment.customerId = customerId;
-      enrollment.enrollmentStatus = 'ACTIVE';
-    }
+    // Enrollment is a separate, explicit security step.
+    // Creating an agreement must never fabricate an enrolled/managed device.
+    // The admin must call POST /api/v1/enrollments to issue a real one-time ticket,
+    // then the customer device performs cryptographic enrollment.
+
     db.save();
 
     AuditService.log({
@@ -274,10 +250,19 @@ export class FinanceController {
                           agreementInstallments.find(i => i.status === 'PENDING');
     }
 
+    if (!targetInstallment) {
+      res.status(400).json({
+        success: false,
+        error: 'NO_PENDING_INSTALLMENT',
+        message: 'No pending or overdue installment is available for this payment'
+      });
+      return;
+    }
+
     const payment: PaymentRecord = {
       id: `pay-${crypto.randomUUID()}`,
       agreementId: agreement.id,
-      installmentId: targetInstallment?.id,
+      installmentId: targetInstallment.id,
       amount: payAmount,
       paymentMethod: ['BANK_TRANSFER', 'CASH', 'POS', 'MOBILE_MONEY'].includes(paymentMethod) ? paymentMethod : 'BANK_TRANSFER',
       transactionReference: reference || `TXN-${Date.now()}`,
