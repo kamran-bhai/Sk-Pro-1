@@ -410,6 +410,7 @@ export class HeartbeatController {
         lastSeenAt: enrollment.lastSeenAt || enrollment.lastHeartbeatAt || null,
         lastHeartbeatAt: enrollment.lastHeartbeatAt || null,
         lastSuccessfulSync: enrollment.lastSuccessfulSync || enrollment.lastHeartbeatAt || null,
+        androidVersion: enrollment.androidVersion || null,
         appVersion: enrollment.appVersion || '1.0.0',
         managementMode: enrollment.managementMode,
         managementStatus: enrollment.managementMode,
