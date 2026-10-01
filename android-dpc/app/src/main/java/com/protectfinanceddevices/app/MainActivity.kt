@@ -1735,6 +1735,29 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onEnrollmentComplete = {
+                                    val locationPermissionGranted =
+                                        androidx.core.content.ContextCompat.checkSelfPermission(
+                                            this@MainActivity,
+                                            android.Manifest.permission.ACCESS_FINE_LOCATION
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                                        androidx.core.content.ContextCompat.checkSelfPermission(
+                                            this@MainActivity,
+                                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                    if (locationPermissionGranted) {
+                                        try {
+                                            androidx.core.content.ContextCompat.startForegroundService(
+                                                this@MainActivity,
+                                                android.content.Intent(
+                                                    this@MainActivity,
+                                                    com.protectfinanceddevices.app.core.location.LocationForegroundService::class.java
+                                                )
+                                            )
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("MainActivity", "Unable to start location foreground service", e)
+                                        }
+                                    }
 
                                     navController.navigate(
                                         NavRoutes.CustomerDeviceStatus.route
