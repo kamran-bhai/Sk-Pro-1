@@ -1092,9 +1092,99 @@ class MainActivity : ComponentActivity() {
                                             )
                                             launch(Dispatchers.Main) {
                                                 if (response.isSuccess) {
-                                                    database.agreementDao().insertAgreement(agreement)
-                                                    database.installmentDao().insertInstallments(installments)
-                                                    lockManager.syncFinancingProtection(agreement.status)
+                                                    val data = response.data?.optJSONObject("data")
+                                                    val serverAgreement = data?.optJSONObject("agreement")
+                                                    val serverAgreementId = serverAgreement
+                                                        ?.optString("id")
+                                                        ?.takeIf { it.isNotBlank() }
+
+                                                    if (serverAgreementId.isNullOrBlank()) {
+                                                        android.widget.Toast.makeText(
+                                                            this@MainActivity,
+                                                            "Server returned no agreement ID.",
+                                                            android.widget.Toast.LENGTH_LONG
+                                                        ).show()
+                                                        return@launch
+                                                    }
+
+                                                    val serverSchedule = data?.optJSONArray("schedule")
+                                                    val authoritativeAgreement = agreement.copy(
+                                                        id = serverAgreementId,
+                                                        totalFinancedAmount = serverAgreement.optDouble(
+                                                            "totalAmount",
+                                                            agreement.totalFinancedAmount
+                                                        ),
+                                                        downPayment = serverAgreement.optDouble(
+                                                            "downPayment",
+                                                            agreement.downPayment
+                                                        ),
+                                                        remainingAmount = serverAgreement.optDouble(
+                                                            "remainingAmount",
+                                                            agreement.remainingAmount
+                                                        ),
+                                                        installmentAmount = serverAgreement.optDouble(
+                                                            "installmentAmount",
+                                                            agreement.installmentAmount
+                                                        ),
+                                                        numberOfInstallments = serverAgreement.optInt(
+                                                            "numberOfInstallments",
+                                                            agreement.numberOfInstallments
+                                                        ),
+                                                        paidInstallments = serverAgreement.optInt(
+                                                            "paidInstallments",
+                                                            agreement.paidInstallments
+                                                        ),
+                                                        remainingInstallments = serverAgreement.optInt(
+                                                            "remainingInstallments",
+                                                            agreement.remainingInstallments
+                                                        ),
+                                                        nextDueDate = serverAgreement.optString(
+                                                            "nextDueDate",
+                                                            agreement.nextDueDate
+                                                        ),
+                                                        gracePeriodDays = serverAgreement.optInt(
+                                                            "gracePeriodDays",
+                                                            agreement.gracePeriodDays
+                                                        ),
+                                                        status = serverAgreement.optString(
+                                                            "status",
+                                                            agreement.status
+                                                        )
+                                                    )
+
+                                                    val authoritativeInstallments = mutableListOf<com.protectfinanceddevices.app.core.storage.entities.InstallmentEntity>()
+                                                    if (serverSchedule != null) {
+                                                        for (i in 0 until serverSchedule.length()) {
+                                                            val item = serverSchedule.optJSONObject(i) ?: continue
+                                                            authoritativeInstallments.add(
+                                                                com.protectfinanceddevices.app.core.storage.entities.InstallmentEntity(
+                                                                    id = item.optString("id"),
+                                                                    agreementId = serverAgreementId,
+                                                                    installmentNumber = item.optInt("installmentNumber"),
+                                                                    dueDate = item.optString("dueDate"),
+                                                                    amount = item.optDouble("amount"),
+                                                                    penaltyFee = item.optDouble("penaltyFee", 0.0),
+                                                                    status = item.optString("status", "PENDING"),
+                                                                    paidDate = item.optString("paidAt").takeIf { it.isNotBlank() }
+                                                                )
+                                                            )
+                                                        }
+                                                    }
+
+                                                    database.withTransaction {
+                                                        database.agreementDao().insertAgreement(authoritativeAgreement)
+                                                        database.installmentDao().insertInstallments(
+                                                            if (authoritativeInstallments.isNotEmpty()) {
+                                                                authoritativeInstallments
+                                                            } else {
+                                                                installments.map {
+                                                                    it.copy(agreementId = serverAgreementId)
+                                                                }
+                                                            }
+                                                        )
+                                                    }
+
+                                                    lockManager.syncFinancingProtection(authoritativeAgreement.status)
                                                     navController.popBackStack()
                                                 } else {
                                                     android.widget.Toast.makeText(
@@ -1147,134 +1237,144 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onRecordPayment = { installmentId ->
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val token = authSessionStore.accessToken
+                                        if (token.isNullOrBlank()) {
+                                            launch(Dispatchers.Main) {
+                                                navController.navigate(NavRoutes.AdminLogin.route)
+                                            }
+                                            return@launch
+                                        }
 
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
+                                        val installment = database
+                                            .installmentDao()
+                                            .getInstallmentById(installmentId)
+                                            ?: return@launch
+
+                                        if (installment.status == "PAID" || installment.status == "WAIVED") {
+                                            return@launch
+                                        }
+
+                                        val agreement = database
+                                            .agreementDao()
+                                            .getAgreementById(installment.agreementId)
+                                            ?: return@launch
+
+                                        val paymentAmount = installment.amount + installment.penaltyFee
+                                        val payload = JSONObject().apply {
+                                            put("agreementId", agreement.id)
+                                            put("amount", paymentAmount)
+                                            put("paymentMethod", "CASH")
+                                            put(
+                                                "reference",
+                                                "ADMIN-${System.currentTimeMillis()}"
+                                            )
+                                            put(
+                                                "notes",
+                                                "Installment #${installment.installmentNumber} payment recorded from admin app"
+                                            )
+                                            put("installmentId", installment.id)
+                                        }
+
+                                        val response = ApiClient().post(
+                                            ApiConfig.API_PREFIX + "/payments",
+                                            payload,
+                                            token
+                                        )
+
+                                        if (!response.isSuccess) {
+                                            launch(Dispatchers.Main) {
+                                                if (response.statusCode == 401 || response.statusCode == 403) {
+                                                    authSessionStore.clear()
+                                                    navController.navigate(NavRoutes.AdminLogin.route)
+                                                } else {
+                                                    android.widget.Toast.makeText(
+                                                        this@MainActivity,
+                                                        response.errorMessage ?: "Payment recording failed.",
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }
+                                            return@launch
+                                        }
+
+                                        val data = response.data?.optJSONObject("data")
+                                        val paymentJson = data?.optJSONObject("payment")
+                                        val settledInstallmentJson = data?.optJSONObject("installmentSettled")
+                                        val summary = data?.optJSONObject("agreementSummary")
+
+                                        if (paymentJson == null || settledInstallmentJson == null || summary == null) {
+                                            launch(Dispatchers.Main) {
+                                                android.widget.Toast.makeText(
+                                                    this@MainActivity,
+                                                    "Server returned an incomplete payment record.",
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                            return@launch
+                                        }
+
+                                        val paidAt = paymentJson
+                                            .optString("createdAt")
+                                            .takeIf { it.isNotBlank() }
+                                            ?: java.text.SimpleDateFormat(
+                                                "yyyy-MM-dd",
+                                                java.util.Locale.US
+                                            ).format(java.util.Date())
+
                                         database.withTransaction {
-                                            val installment =
-                                                database
-                                                    .installmentDao()
-                                                    .getInstallmentById(installmentId)
-                                                    ?: return@withTransaction
-
-                                            if (installment.status == "PAID") {
-                                                return@withTransaction
-                                            }
-
-                                            val agreement =
-                                                database
-                                                    .agreementDao()
-                                                    .getAgreementById(
-                                                        installment.agreementId
-                                                    )
-                                                    ?: return@withTransaction
-
-                                            val paidDate =
-                                                java.text.SimpleDateFormat(
-                                                    "yyyy-MM-dd",
-                                                    java.util.Locale.US
-                                                ).format(
-                                                    java.util.Date()
+                                            database.installmentDao().updateInstallment(
+                                                installment.copy(
+                                                    status = settledInstallmentJson.optString("status", "PAID"),
+                                                    paidDate = settledInstallmentJson
+                                                        .optString("paidAt")
+                                                        .takeIf { it.isNotBlank() }
+                                                        ?: paidAt
                                                 )
-
-                                            val updatedRows =
-                                                database
-                                                    .installmentDao()
-                                                    .markInstallmentPaid(
-                                                        installmentId,
-                                                        paidDate
-                                                    )
-
-                                            if (updatedRows == 0) {
-                                                return@withTransaction
-                                            }
-
-                                            val payment =
-                                                com.protectfinanceddevices.app
-                                                    .core.storage.entities.PaymentEntity(
-                                                        id = UUID.randomUUID().toString(),
-                                                        agreementId = agreement.id,
-                                                        installmentId = installment.id,
-                                                        amount = installment.amount +
-                                                            installment.penaltyFee,
-                                                        paidAt = paidDate
-                                                    )
-
-                                            database
-                                                .paymentDao()
-                                                .insertPayment(payment)
-
-                                            database
-                                                .auditLogDao()
-                                                .insert(
-                                                    com.protectfinanceddevices.app
-                                                        .core.storage.entities.AuditLogEntity(
-                                                            id = UUID.randomUUID().toString(),
-                                                            actorType = "ADMIN",
-                                                            action = "PAYMENT_RECORDED",
-                                                            entityType = "INSTALLMENT",
-                                                            entityId = installment.id,
-                                                            details = "Payment recorded for agreement ${agreement.id}; amount=${payment.amount}"
-                                                        )
-                                                )
-
-                                            val allInstallments =
-                                                database
-                                                    .installmentDao()
-                                                    .getInstallmentsForAgreementOnce(
-                                                        agreement.id
-                                                    )
-
-                                            val unpaidInstallments =
-                                                allInstallments.filter {
-                                                    it.status != "PAID" &&
-                                                        it.status != "WAIVED"
-                                                }
-
-                                            val paidInstallments =
-                                                allInstallments.count {
-                                                    it.status == "PAID"
-                                                }
-
-                                            val remainingAmount =
-                                                unpaidInstallments.sumOf {
-                                                    it.amount + it.penaltyFee
-                                                }
-
-                                            val nextDueDate =
-                                                unpaidInstallments
-                                                    .minByOrNull { it.dueDate }
-                                                    ?.dueDate
-                                                    ?: agreement.nextDueDate
-
-                                            val updatedStatus =
-                                                when {
-                                                    unpaidInstallments.isEmpty() ->
-                                                        "COMPLETED"
-                                                    allInstallments.any {
-                                                        it.status == "OVERDUE"
-                                                    } ->
-                                                        "OVERDUE"
-                                                    else -> "ACTIVE"
-                                                }
-
-                                            val updatedAgreement = agreement.copy(
-                                                remainingAmount = remainingAmount,
-                                                paidInstallments = paidInstallments,
-                                                remainingInstallments = unpaidInstallments.size,
-                                                nextDueDate = nextDueDate,
-                                                status = updatedStatus
                                             )
 
-                                            database
-                                                .agreementDao()
-                                                .updateAgreement(updatedAgreement)
+                                            database.paymentDao().insertPayment(
+                                                com.protectfinanceddevices.app.core.storage.entities.PaymentEntity(
+                                                    id = paymentJson.optString("id"),
+                                                    agreementId = agreement.id,
+                                                    installmentId = installment.id,
+                                                    amount = paymentJson.optDouble("amount", paymentAmount),
+                                                    paidAt = paidAt
+                                                )
+                                            )
 
-                                            // Protection is released only when the agreement
-                                            // is fully completed; paying one installment is
-                                            // not enough to remove device-management policy.
-                                            lockManager.syncFinancingProtection(updatedAgreement.status)
+                                            database.agreementDao().updateAgreement(
+                                                agreement.copy(
+                                                    remainingAmount = summary.optDouble(
+                                                        "remainingAmount",
+                                                        agreement.remainingAmount
+                                                    ),
+                                                    paidInstallments = summary.optInt(
+                                                        "paidInstallments",
+                                                        agreement.paidInstallments
+                                                    ),
+                                                    remainingInstallments = summary.optInt(
+                                                        "remainingInstallments",
+                                                        agreement.remainingInstallments
+                                                    ),
+                                                    nextDueDate = summary.optString(
+                                                        "nextDueDate",
+                                                        agreement.nextDueDate
+                                                    ),
+                                                    status = summary.optString(
+                                                        "status",
+                                                        agreement.status
+                                                    )
+                                                )
+                                            )
+                                        }
+
+                                        launch(Dispatchers.Main) {
+                                            android.widget.Toast.makeText(
+                                                this@MainActivity,
+                                                "Payment recorded successfully.",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     }
                                 },
