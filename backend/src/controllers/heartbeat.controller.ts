@@ -55,6 +55,8 @@ export class HeartbeatController {
       networkType,
       networkConnectivity,
       simCarrier,
+      simFingerprint,
+      simSubscriptionCount,
       usbDebuggingEnabled
     } = req.body;
 
@@ -211,16 +213,32 @@ export class HeartbeatController {
       }
     }
 
-    // SIM Swap Anomaly Detection
-    if (simCarrier && enrollment.simCarrier && simCarrier !== enrollment.simCarrier) {
+    // SIM / subscription change detection.
+    // Prefer the Android-provided subscription fingerprint because carrier names alone
+    // are not a reliable identity signal (e.g. MVNO/roaming/name changes).
+    const simIdentityChanged =
+      !!simFingerprint &&
+      !!enrollment.simFingerprint &&
+      simFingerprint !== enrollment.simFingerprint;
+    const carrierChangedWithoutFingerprint =
+      !simFingerprint &&
+      !!simCarrier &&
+      !!enrollment.simCarrier &&
+      simCarrier !== enrollment.simCarrier;
+
+    if (simIdentityChanged || carrierChangedWithoutFingerprint) {
+      const previousCarrier = enrollment.simCarrier || 'UNKNOWN';
+      const currentCarrier = simCarrier || 'UNKNOWN';
+      const previousCount = enrollment.simSubscriptionCount ?? null;
+      const currentCount = simSubscriptionCount ?? null;
       const alert: AlertRecord = {
         id: `alt-${crypto.randomBytes(3).toString('hex')}`,
         enrollmentId: enrollment.id,
         agreementId: enrollment.agreementId,
         severity: 'CRITICAL',
         alertType: 'SIM_CHANGE',
-        title: 'SIM Subscription Change Detected',
-        details: `Carrier changed from '${enrollment.simCarrier}' to '${simCarrier}'. Risk analysis flagged potential unauthorized transfer.`,
+        title: 'SIM CHANGE DETECTED',
+        details: `Android reported a SIM/subscription identity change. Previous carrier: '${previousCarrier}'. Current carrier: '${currentCarrier}'. Previous subscriptions: ${previousCount ?? 'unknown'}. Current subscriptions: ${currentCount ?? 'unknown'}.`,
         isAcknowledged: false,
         createdAt: nowIso
       };
@@ -230,7 +248,13 @@ export class HeartbeatController {
         action: 'SIM_SWAP_DETECTED',
         entityName: 'device_enrollments',
         entityId: enrollment.id,
-        changes: { previous: enrollment.simCarrier, current: simCarrier },
+        changes: {
+          previousCarrier,
+          currentCarrier,
+          previousSubscriptionCount: previousCount,
+          currentSubscriptionCount: currentCount,
+          fingerprintChanged: simIdentityChanged
+        },
         ipAddress: req.ip
       });
 
@@ -238,12 +262,24 @@ export class HeartbeatController {
         enrollment.deviceId,
         enrollment.id,
         'SECURITY_EVENT',
-        `SIM card change detected: from '${enrollment.simCarrier}' to '${simCarrier}'.`,
-        { previous: enrollment.simCarrier, current: simCarrier }
+        'SIM/subscription change detected from Android-supported subscription telemetry.',
+        {
+          previousCarrier,
+          currentCarrier,
+          previousSubscriptionCount: previousCount,
+          currentSubscriptionCount: currentCount,
+          fingerprintChanged: simIdentityChanged
+        }
       );
     }
-    if (simCarrier) {
-      enrollment.simCarrier = simCarrier;
+    if (simCarrier !== undefined) {
+      enrollment.simCarrier = String(simCarrier);
+    }
+    if (simFingerprint !== undefined) {
+      enrollment.simFingerprint = String(simFingerprint);
+    }
+    if (simSubscriptionCount !== undefined && !isNaN(Number(simSubscriptionCount))) {
+      enrollment.simSubscriptionCount = Number(simSubscriptionCount);
     }
 
     // USB Debugging Anomaly Detection
