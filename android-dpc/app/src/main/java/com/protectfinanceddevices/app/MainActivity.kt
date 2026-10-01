@@ -447,6 +447,18 @@ class MainActivity : ComponentActivity() {
                                     it.id == deviceId
                                 }
 
+                            var refreshedDevice by remember(deviceId) {
+                                mutableStateOf<DeviceEntity?>(null)
+                            }
+                            var statusRefreshing by remember(deviceId) {
+                                mutableStateOf(false)
+                            }
+                            var statusError by remember(deviceId) {
+                                mutableStateOf<String?>(null)
+                            }
+
+                            val displayedDevice = refreshedDevice ?: currentDevice
+
                             val customer =
                                 customers.find {
                                     it.id ==
@@ -480,7 +492,7 @@ class MainActivity : ComponentActivity() {
 
                             DeviceDetailsScreen(
 
-                                device = currentDevice,
+                                device = displayedDevice,
 
                                 customer = customer,
 
@@ -613,10 +625,90 @@ class MainActivity : ComponentActivity() {
                                 },
 
                                 onRequestStatus = {
+                                    if (deviceId.isBlank()) {
+                                        statusError = "No device ID is available."
+                                    } else if (authSessionStore.accessToken.isNullOrBlank()) {
+                                        statusError = "Admin session expired. Please sign in again."
+                                    } else {
+                                        statusRefreshing = true
+                                        statusError = null
 
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            val response = ApiClient(ApiConfig.DEFAULT_BASE_URL).get(
+                                                ApiConfig.ENDPOINT_DEVICE_STATUS + "/" + deviceId + "/status",
+                                                accessToken = authSessionStore.accessToken
+                                            )
+
+                                            withContext(Dispatchers.Main) {
+                                                statusRefreshing = false
+
+                                                if (response.isSuccess) {
+                                                    val data = response.data?.optJSONObject("data")
+                                                    val serverStatus = data?.optString("enrollmentStatus")
+                                                        ?.takeIf { it.isNotBlank() }
+                                                        ?: displayedDevice?.enrollmentStatus
+                                                        ?: "UNENROLLED"
+                                                    val onlineStatus = data?.optString("deviceOnlineStatus") == "ONLINE"
+                                                    val battery = data?.optInt(
+                                                        "batteryPercent",
+                                                        displayedDevice?.batteryPercent ?: 0
+                                                    ) ?: 0
+                                                    val lastSeen = data?.optString("lastSeenAt")
+                                                        ?.let {
+                                                            try {
+                                                                java.time.Instant.parse(it).toEpochMilli()
+                                                            } catch (_: Exception) {
+                                                                displayedDevice?.lastSeenTimestamp ?: 0L
+                                                            }
+                                                        } ?: (displayedDevice?.lastSeenTimestamp ?: 0L)
+                                                    val managementMode = data?.optString("managementMode")
+                                                        ?.takeIf { it.isNotBlank() }
+                                                        ?: displayedDevice?.managementMode
+                                                        ?: "UNMANAGED"
+                                                    val androidVersion = data?.optString("androidVersion")
+                                                        ?.takeIf { it.isNotBlank() }
+                                                        ?: displayedDevice?.androidVersion
+                                                        ?: ""
+                                                    val simCarrier = data?.optString("simCarrier")
+                                                        ?.takeIf { it.isNotBlank() }
+                                                    val usbDebugging = data?.optBoolean(
+                                                        "usbDebuggingActive",
+                                                        displayedDevice?.usbDebuggingActive ?: false
+                                                    ) ?: false
+
+                                                    displayedDevice?.let { local ->
+                                                        val updated = local.copy(
+                                                            enrollmentStatus = serverStatus,
+                                                            managementMode = managementMode,
+                                                            androidVersion = androidVersion,
+                                                            lastSeenTimestamp = lastSeen,
+                                                            batteryPercent = battery,
+                                                            isOnline = onlineStatus,
+                                                            simCarrier = simCarrier ?: local.simCarrier,
+                                                            usbDebuggingActive = usbDebugging
+                                                        )
+                                                        refreshedDevice = updated
+                                                        database.deviceDao().updateStatusSnapshot(
+                                                            deviceId = updated.id,
+                                                            status = updated.enrollmentStatus,
+                                                            managementMode = updated.managementMode,
+                                                            androidVersion = updated.androidVersion,
+                                                            lastSeenTimestamp = updated.lastSeenTimestamp,
+                                                            batteryPercent = updated.batteryPercent,
+                                                            isOnline = updated.isOnline,
+                                                            simCarrier = updated.simCarrier,
+                                                            usbDebuggingActive = updated.usbDebuggingActive
+                                                        )
+                                                    }
+                                                } else {
+                                                    statusError = response.errorMessage
+                                                        ?: "Could not retrieve verified device status."
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+
 
                                         val now =
                                             System.currentTimeMillis()
