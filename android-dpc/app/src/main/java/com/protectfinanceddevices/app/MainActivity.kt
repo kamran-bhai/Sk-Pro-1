@@ -489,120 +489,126 @@ class MainActivity : ComponentActivity() {
                                 commands = commands,
 
                                 onLockDevice = { reason ->
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val payload = JSONObject().apply {
+                                            put("commandType", "LOCK_DEVICE")
+                                            put("reason", reason)
+                                        }
 
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
+                                        val response = ApiClient(ApiConfig.DEFAULT_BASE_URL).post(
+                                            "/api/v1/devices/" + deviceId + "/commands",
+                                            payload,
+                                            authSessionStore.accessToken
+                                        )
 
-                                        database
-                                            .deviceDao()
-                                            .updateDeviceStatus(
-                                                deviceId,
-                                                "LOCKED"
+                                        if (!response.isSuccess) {
+                                            android.util.Log.e(
+                                                "MainActivity",
+                                                "Remote lock command was not created: " +
+                                                    (response.errorMessage ?: "Unknown server error")
                                             )
+                                            return@launch
+                                        }
 
-                                        val now =
-                                            System.currentTimeMillis()
+                                        val command = response.data
+                                            ?.optJSONObject("data")
+                                            ?.optJSONObject("command")
 
-                                        val command =
+                                        if (command == null) {
+                                            android.util.Log.e(
+                                                "MainActivity",
+                                                "Server returned no command record for remote lock."
+                                            )
+                                            return@launch
+                                        }
+
+                                        val commandId = command.optString("id").takeIf { it.isNotBlank() }
+                                            ?: return@launch
+                                        val nonce = command.optString("nonce").takeIf { it.isNotBlank() }
+                                            ?: return@launch
+                                        val expiresAt = command.optString("expiresAt").let {
+                                            try {
+                                                java.time.Instant.parse(it).toEpochMilli()
+                                            } catch (_: Exception) {
+                                                System.currentTimeMillis() + 86400000L
+                                            }
+                                        }
+
+                                        database.deviceCommandDao().insertCommand(
                                             DeviceCommandEntity(
-
-                                                commandId =
-                                                    UUID.randomUUID()
-                                                        .toString(),
-
+                                                commandId = commandId,
                                                 deviceId = deviceId,
-
-                                                commandType =
-                                                    "LOCK_DEVICE",
-
-                                                status =
-                                                    "ACKNOWLEDGED",
-
-                                                nonce =
-                                                    UUID.randomUUID()
-                                                        .toString()
-                                                        .replace("-", ""),
-
-                                                serverSignature =
-                                                    "ECDSA_NIST_P256_SERVER_SIG",
-
-                                                issuedAt = now,
-
-                                                expiresAt =
-                                                    now + 86400000,
-
-                                                executionLog =
-                                                    "Lock enforced: $reason"
+                                                commandType = "LOCK_DEVICE",
+                                                status = "PENDING",
+                                                nonce = nonce,
+                                                serverSignature = command.optString("serverSignature"),
+                                                issuedAt = System.currentTimeMillis(),
+                                                expiresAt = expiresAt,
+                                                executionLog = "Queued by admin. Reason: " + reason
                                             )
-
-                                        database
-                                            .deviceCommandDao()
-                                            .insertCommand(command)
-
-                                        lockManager
-                                            .enforceLockState(
-                                                this@MainActivity
-                                            )
+                                        )
                                     }
                                 },
 
                                 onUnlockDevice = {
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val payload = JSONObject().apply {
+                                            put("commandType", "UNLOCK_DEVICE")
+                                            put("reason", "Admin requested remote unlock")
+                                        }
 
-                                    lifecycleScope.launch(
-                                        Dispatchers.IO
-                                    ) {
+                                        val response = ApiClient(ApiConfig.DEFAULT_BASE_URL).post(
+                                            "/api/v1/devices/" + deviceId + "/commands",
+                                            payload,
+                                            authSessionStore.accessToken
+                                        )
 
-                                        database
-                                            .deviceDao()
-                                            .updateDeviceStatus(
-                                                deviceId,
-                                                "ACTIVE"
+                                        if (!response.isSuccess) {
+                                            android.util.Log.e(
+                                                "MainActivity",
+                                                "Remote unlock command was not created: " +
+                                                    (response.errorMessage ?: "Unknown server error")
                                             )
+                                            return@launch
+                                        }
 
-                                        val now =
-                                            System.currentTimeMillis()
+                                        val command = response.data
+                                            ?.optJSONObject("data")
+                                            ?.optJSONObject("command")
 
-                                        val command =
+                                        if (command == null) {
+                                            android.util.Log.e(
+                                                "MainActivity",
+                                                "Server returned no command record for remote unlock."
+                                            )
+                                            return@launch
+                                        }
+
+                                        val commandId = command.optString("id").takeIf { it.isNotBlank() }
+                                            ?: return@launch
+                                        val nonce = command.optString("nonce").takeIf { it.isNotBlank() }
+                                            ?: return@launch
+                                        val expiresAt = command.optString("expiresAt").let {
+                                            try {
+                                                java.time.Instant.parse(it).toEpochMilli()
+                                            } catch (_: Exception) {
+                                                System.currentTimeMillis() + 86400000L
+                                            }
+                                        }
+
+                                        database.deviceCommandDao().insertCommand(
                                             DeviceCommandEntity(
-
-                                                commandId =
-                                                    UUID.randomUUID()
-                                                        .toString(),
-
+                                                commandId = commandId,
                                                 deviceId = deviceId,
-
-                                                commandType =
-                                                    "UNLOCK_DEVICE",
-
-                                                status =
-                                                    "ACKNOWLEDGED",
-
-                                                nonce =
-                                                    UUID.randomUUID()
-                                                        .toString()
-                                                        .replace("-", ""),
-
-                                                serverSignature =
-                                                    "ECDSA_NIST_P256_SERVER_SIG",
-
-                                                issuedAt = now,
-
-                                                expiresAt =
-                                                    now + 86400000,
-
-                                                executionLog =
-                                                    "Unlocked upon payment / manual override"
+                                                commandType = "UNLOCK_DEVICE",
+                                                status = "PENDING",
+                                                nonce = nonce,
+                                                serverSignature = command.optString("serverSignature"),
+                                                issuedAt = System.currentTimeMillis(),
+                                                expiresAt = expiresAt,
+                                                executionLog = "Queued by admin. Android may report remote unlock as unsupported."
                                             )
-
-                                        database
-                                            .deviceCommandDao()
-                                            .insertCommand(command)
-
-                                        lockManager
-                                            .releaseLockState(
-                                                this@MainActivity
-                                            )
+                                        )
                                     }
                                 },
 
