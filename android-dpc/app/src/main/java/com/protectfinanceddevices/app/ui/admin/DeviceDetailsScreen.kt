@@ -129,6 +129,48 @@ fun DeviceDetailsScreen(
                 }
             }
 
+            // Verified Status Details
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "VERIFIED DEVICE DETAILS",
+                            fontSize = 11.sp,
+                            color = Slate400,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        DetailRow("Device ID", device.id)
+                        DetailRow("Manufacturer", device.manufacturer)
+                        DetailRow("Model", device.model)
+                        DetailRow("Android Version", device.androidVersion.ifBlank { "Not reported" })
+                        DetailRow("Management", device.managementMode)
+                        DetailRow(
+                            "Last Seen",
+                            if (device.lastSeenTimestamp > 0L) {
+                                java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd HH:mm:ss",
+                                    java.util.Locale.getDefault()
+                                ).format(java.util.Date(device.lastSeenTimestamp))
+                            } else "Never confirmed"
+                        )
+                        DetailRow("SIM", device.simCarrier ?: "Not reported")
+                        DetailRow(
+                            "USB Debugging",
+                            if (device.usbDebuggingActive) "Enabled" else "Disabled / not reported"
+                        )
+                        DetailRow(
+                            "Telemetry",
+                            if (device.isOnline) "Verified online" else "Last-known offline"
+                        )
+                    }
+                }
+            }
+
             // Command Controller Panel
             item {
                 Card(
@@ -336,7 +378,29 @@ fun DeviceDetailsScreen(
         }
     }
 
-    // Confirmation Dialog for Lock
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Slate400, fontSize = 12.sp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            value,
+            color = Slate100,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+// Confirmation Dialog for Lock
     if (showLockDialog) {
         AlertDialog(
             onDismissRequest = { showLockDialog = false },
