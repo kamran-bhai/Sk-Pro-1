@@ -16,6 +16,7 @@ object ApiConfig {
     const val ENDPOINT_ENROLLMENT_VERIFY = "$API_PREFIX/enrollments"     // POST /:id/verify
     const val ENDPOINT_HEARTBEAT = "$API_PREFIX/device/heartbeat"         // POST
     const val ENDPOINT_DEVICE_STATUS = "$API_PREFIX/devices"             // GET /:enrollmentId/status
+    const val ENDPOINT_COMMAND_ACK = "$API_PREFIX/device-gateway/command-ack" // POST
 
     // App constants
     const val CLIENT_APP_VERSION = "1.0.0"
