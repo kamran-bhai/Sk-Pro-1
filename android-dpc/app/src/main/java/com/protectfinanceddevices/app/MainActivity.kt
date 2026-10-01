@@ -1240,7 +1240,7 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch(Dispatchers.IO) {
                                         val token = authSessionStore.accessToken
                                         if (token.isNullOrBlank()) {
-                                            launch(Dispatchers.Main) {
+                                            withContext(Dispatchers.Main) {
                                                 navController.navigate(NavRoutes.AdminLogin.route)
                                             }
                                             return@launch
@@ -1283,7 +1283,7 @@ class MainActivity : ComponentActivity() {
                                         )
 
                                         if (!response.isSuccess) {
-                                            launch(Dispatchers.Main) {
+                                            withContext(Dispatchers.Main) {
                                                 if (response.statusCode == 401 || response.statusCode == 403) {
                                                     authSessionStore.clear()
                                                     navController.navigate(NavRoutes.AdminLogin.route)
@@ -1304,7 +1304,7 @@ class MainActivity : ComponentActivity() {
                                         val summary = data?.optJSONObject("agreementSummary")
 
                                         if (paymentJson == null || settledInstallmentJson == null || summary == null) {
-                                            launch(Dispatchers.Main) {
+                                            withContext(Dispatchers.Main) {
                                                 android.widget.Toast.makeText(
                                                     this@MainActivity,
                                                     "Server returned an incomplete payment record.",
@@ -1369,7 +1369,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        launch(Dispatchers.Main) {
+                                        withContext(Dispatchers.Main) {
                                             android.widget.Toast.makeText(
                                                 this@MainActivity,
                                                 "Payment recorded successfully.",
