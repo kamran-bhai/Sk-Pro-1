@@ -83,6 +83,9 @@ dependencies {
     // Background WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // Google Play services location
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // Security & Keystore
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
