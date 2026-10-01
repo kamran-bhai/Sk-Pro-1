@@ -264,7 +264,7 @@ export function calculateDeviceOnlineStatus(
   if (enrollment.enrollmentStatus === 'SUSPENDED') {
     return 'SUSPENDED';
   }
-  if (enrollment.enrollmentStatus !== 'ACTIVE') {
+  if (!['ACTIVE', 'LOCKED'].includes(enrollment.enrollmentStatus)) {
     return 'UNKNOWN';
   }
   if (!enrollment.lastHeartbeatAt) {
