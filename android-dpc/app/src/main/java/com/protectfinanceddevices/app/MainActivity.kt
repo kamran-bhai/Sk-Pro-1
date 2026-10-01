@@ -26,6 +26,7 @@ import com.protectfinanceddevices.app.core.network.DeviceEnrollmentService
 import com.protectfinanceddevices.app.core.network.EnrollmentResult
 import com.protectfinanceddevices.app.core.dpc.DeviceLockManager
 import com.protectfinanceddevices.app.core.storage.entities.DeviceCommandEntity
+import com.protectfinanceddevices.app.core.storage.entities.DeviceEntity
 import com.protectfinanceddevices.app.ui.admin.*
 import com.protectfinanceddevices.app.ui.customer.CustomerDeviceStatusScreen
 import com.protectfinanceddevices.app.ui.customer.CustomerEnrollmentScreen
@@ -37,6 +38,7 @@ import com.protectfinanceddevices.app.ui.theme.Slate900
 import com.protectfinanceddevices.app.ui.theme.Slate950
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
 
@@ -676,15 +678,16 @@ class MainActivity : ComponentActivity() {
                                                         displayedDevice?.usbDebuggingActive ?: false
                                                     ) ?: false
 
-                                                    displayedDevice?.let { local ->
-                                                        val updated = local.copy(
+                                                    val localDevice = displayedDevice
+                                                    if (localDevice != null) {
+                                                        val updated = localDevice.copy(
                                                             enrollmentStatus = serverStatus,
                                                             managementMode = managementMode,
                                                             androidVersion = androidVersion,
                                                             lastSeenTimestamp = lastSeen,
                                                             batteryPercent = battery,
                                                             isOnline = onlineStatus,
-                                                            simCarrier = simCarrier ?: local.simCarrier,
+                                                            simCarrier = simCarrier ?: localDevice.simCarrier,
                                                             usbDebuggingActive = usbDebugging
                                                         )
                                                         refreshedDevice = updated
