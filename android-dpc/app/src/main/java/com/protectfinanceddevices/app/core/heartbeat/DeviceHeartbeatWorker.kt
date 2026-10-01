@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import android.os.Build
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -71,6 +72,7 @@ class DeviceHeartbeatWorker(
                 put("signature", signature)
                 put("batteryPercent", batteryPercent)
                 put("networkType", networkState)
+                put("androidVersion", Build.VERSION.RELEASE)
                 put("appVersion", appVersion)
                 put("managementStatus", managementStatus)
             }
