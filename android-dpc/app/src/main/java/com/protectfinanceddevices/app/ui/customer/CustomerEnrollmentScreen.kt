@@ -514,13 +514,29 @@ fun CustomerEnrollmentScreen(
                                         androidx.core.content.ContextCompat.checkSelfPermission(
                                             context,
                                             Manifest.permission.ACCESS_FINE_LOCATION
+                                        ) != PackageManager.PERMISSION_GRANTED &&
+                                        androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        locationPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                                Manifest.permission.ACCESS_COARSE_LOCATION
+                                            )
+                                        )
+                                    } else if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                                        androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.READ_PHONE_STATE
                                         ) != PackageManager.PERMISSION_GRANTED
                                     ) {
                                         phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                                     } else {
                                         startEnrollmentFlow()
-                                    }
-                                },
+                                    }                                },
                                 enabled = permissionsAgreed,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
