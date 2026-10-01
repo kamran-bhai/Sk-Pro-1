@@ -4,6 +4,7 @@ import { db, AlertRecord, DeviceActivityRecord, DeviceHeartbeatRecord, calculate
 import { AuditService } from '../services/audit.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { SECURITY_CONFIG } from '../config/security.js';
+import { syncOverdueFinancingState } from './finance.controller.js';
 
 export class HeartbeatController {
   /**
@@ -34,6 +35,10 @@ export class HeartbeatController {
    * Cryptographically authenticated, replay-protected device heartbeat.
    */
   static async processHeartbeat(req: Request, res: Response): Promise<void> {
+    // Reconcile financing status before returning device commands.
+    // This may queue a signed lock command only for supported managed devices after grace period.
+    syncOverdueFinancingState();
+
     const enrollmentId =
       req.body.enrollmentId ||
       (req.headers['x-enrollment-id'] as string);
