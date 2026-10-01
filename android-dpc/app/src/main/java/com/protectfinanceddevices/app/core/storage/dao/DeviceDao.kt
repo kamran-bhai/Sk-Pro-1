@@ -45,4 +45,24 @@ interface DeviceDao {
 
     @Query("UPDATE devices SET enrollmentStatus = :status WHERE id = :deviceId")
     suspend fun updateDeviceStatus(deviceId: String, status: String)
+
+    @Query("""
+        UPDATE devices
+        SET lastSeenTimestamp = :lastSeenTimestamp,
+            batteryPercent = :batteryPercent,
+            isOnline = 1
+        WHERE id = :deviceId
+    """)
+    suspend fun markHeartbeatAcknowledged(
+        deviceId: String,
+        lastSeenTimestamp: Long,
+        batteryPercent: Int
+    )
+
+    @Query("""
+        UPDATE devices
+        SET isOnline = 0
+        WHERE id = :deviceId
+    """)
+    suspend fun markOffline(deviceId: String)
 }
