@@ -399,6 +399,7 @@ fun DeviceDetailsScreen(
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
+    }
 
     if (showLockDialog) {
         AlertDialog(
