@@ -90,17 +90,37 @@ export class HeartbeatController {
       return;
     }
 
-    // Cryptographic & Replay Protection verification if signature/nonce provided
-    // In production, heartbeats must be cryptographically signed by the Android Keystore private key.
-    if (nonce || signature || timestamp) {
-      if (!nonce) {
-        res.status(400).json({
-          success: false,
-          error: 'NONCE_REQUIRED',
-          message: 'Heartbeat replay protection requires a unique nonce.'
-        });
-        return;
-      }
+    // Every heartbeat is authenticated. Do not accept an unsigned heartbeat.
+    // The Android client signs the canonical enrollmentId|nonce|timestamp payload
+    // with the enrollment's registered Android Keystore public key.
+    if (!nonce) {
+      res.status(400).json({
+        success: false,
+        error: 'NONCE_REQUIRED',
+        message: 'Heartbeat replay protection requires a unique nonce.'
+      });
+      return;
+    }
+
+    if (!timestamp) {
+      res.status(400).json({
+        success: false,
+        error: 'TIMESTAMP_REQUIRED',
+        message: 'Device timestamp is required for heartbeat timeliness validation.'
+      });
+      return;
+    }
+
+    if (!signature) {
+      res.status(401).json({
+        success: false,
+        error: 'SIGNATURE_REQUIRED',
+        message: 'Cryptographic signature from Android Keystore is required.'
+      });
+      return;
+    }
+
+    // Replay attack prevention: check if nonce was already consumed
 
       // Replay attack prevention: check if nonce was already consumed
       if (db.usedNonces.has(nonce)) {
@@ -108,15 +128,6 @@ export class HeartbeatController {
           success: false,
           error: 'REPLAY_ATTACK_DETECTED',
           message: 'Nonce has already been used. Replay attacks are strictly rejected.'
-        });
-        return;
-      }
-
-      if (!timestamp) {
-        res.status(400).json({
-          success: false,
-          error: 'TIMESTAMP_REQUIRED',
-          message: 'Device timestamp is required for heartbeat timeliness validation.'
         });
         return;
       }
@@ -133,15 +144,6 @@ export class HeartbeatController {
         return;
       }
 
-      if (!signature) {
-        res.status(401).json({
-          success: false,
-          error: 'SIGNATURE_REQUIRED',
-          message: 'Cryptographic signature from Android Keystore is required.'
-        });
-        return;
-      }
-
       if (!enrollment.devicePublicKeyPem) {
         res.status(400).json({
           success: false,
@@ -151,12 +153,10 @@ export class HeartbeatController {
         return;
       }
 
-      // Verify signature over canonical payload: `${enrollmentId}|${nonce}|${timestamp}`
-      // Also allows signing over nonce directly for routine challenge-response compatibility
+      // Verify only the canonical payload. Do not accept a nonce-only signature.
       const canonicalData = `${enrollmentId}|${nonce}|${timestamp}`;
       const isSignatureValid =
-        CryptoService.verifyDeviceSignature(canonicalData, signature, enrollment.devicePublicKeyPem) ||
-        CryptoService.verifyDeviceSignature(nonce, signature, enrollment.devicePublicKeyPem);
+        CryptoService.verifyDeviceSignature(canonicalData, signature, enrollment.devicePublicKeyPem);
 
       if (!isSignatureValid) {
         res.status(401).json({
