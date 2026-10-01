@@ -1,4 +1,4 @@
-package com.protectfinanceddevices.app.core.heartbeat
+package com.protectfinancedevices.app.core.heartbeat
 
 import android.content.Context
 import android.content.Intent
@@ -18,17 +18,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
 
-/**
- * Background WorkManager worker responsible for dispatching periodic cryptographically authenticated
- * device heartbeats to the financing backend authority.
- *
- * Adheres strictly to Android WorkManager standards:
- * - Minimum 15-minute periodic interval
- * - Network constraint validation
- * - Hardware Keystore EC P-256 signing (${enrollmentId}|${nonce}|${timestamp})
- * - Replay prevention with unique nonces
- * - Exponential backoff retry on transient network or server errors
- */
 class DeviceHeartbeatWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -40,28 +29,25 @@ class DeviceHeartbeatWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         Log.i(TAG, "Executing scheduled secure device heartbeat worker...")
 
-        // 1. Verify network connectivity
         if (!isNetworkConnected()) {
             Log.w(TAG, "No network connectivity detected. Backing off with WorkManager retry.")
             return@withContext Result.retry()
         }
 
         try {
-            // 2. Fetch local active enrollment from Room DB
             val enrollmentDao = database.deviceEnrollmentDao()
+            val deviceDao = database.deviceDao()
             val enrollment = enrollmentDao.getActiveEnrollment()
             val enrollmentId = enrollment?.enrollmentId ?: run {
                 Log.w(TAG, "No active enrollment record located in local storage. Skipping heartbeat.")
                 return@withContext Result.success()
             }
 
-            // If enrollment is locally marked revoked, do not waste battery
             if (enrollment.enrollmentStatus == "REVOKED") {
                 Log.i(TAG, "Device enrollment is revoked. Skipping periodic heartbeat.")
                 return@withContext Result.success()
             }
 
-            // 3. Assemble hardware telemetry metrics
             val batteryPercent = getBatteryPercentage()
             val networkState = getNetworkTypeString()
             val timestamp = System.currentTimeMillis()
@@ -69,12 +55,9 @@ class DeviceHeartbeatWorker(
             val appVersion = ApiConfig.CLIENT_APP_VERSION
             val managementStatus = enrollment.managementMode
 
-            // 4. Hardware Keystore cryptographic signature
-            // Canonical format: `${enrollmentId}|${nonce}|${timestamp}`
             val canonicalData = "$enrollmentId|$nonce|$timestamp"
             val signature = keyStoreManager.signData(canonicalData.toByteArray(Charsets.UTF_8))
 
-            // 5. Construct payload for backend ingestion
             val payload = JSONObject().apply {
                 put("enrollmentId", enrollmentId)
                 put("nonce", nonce)
@@ -92,9 +75,19 @@ class DeviceHeartbeatWorker(
 
             when (response.statusCode) {
                 in 200..299 -> {
-                    Log.i(TAG, "Device heartbeat acknowledged by server (HTTP ${response.statusCode}). Updating local sync timestamp.")
+                    Log.i(TAG, "Device heartbeat acknowledged by server. Updating verified local telemetry.")
                     enrollmentDao.updateLastSync(enrollmentId, timestamp)
                     enrollmentDao.updateEnrollmentStatus(enrollmentId, "ACTIVE")
+
+                    val localDevice = deviceDao.getDeviceById(enrollment.deviceId)
+                    if (localDevice != null) {
+                        deviceDao.markHeartbeatAcknowledged(
+                            deviceId = localDevice.id,
+                            lastSeenTimestamp = timestamp,
+                            batteryPercent = batteryPercent
+                        )
+                    }
+
                     Result.success()
                 }
                 401 -> {
@@ -104,23 +97,24 @@ class DeviceHeartbeatWorker(
                 403 -> {
                     Log.e(TAG, "Server rejected heartbeat: Device enrollment suspended or revoked (HTTP 403).")
                     enrollmentDao.updateEnrollmentStatus(enrollmentId, "REVOKED")
+                    deviceDao.markOffline(enrollment.deviceId)
                     Result.failure()
                 }
                 400 -> {
-                    Log.w(TAG, "Heartbeat bad request: ${response.errorMessage}. Will retry on next window.")
+                    Log.w(TAG, "Heartbeat bad request: " + response.errorMessage + ". Will retry on next window.")
                     Result.retry()
                 }
                 in 500..599 -> {
-                    Log.w(TAG, "Server transient error during heartbeat sync (HTTP ${response.statusCode}). Retrying with backoff.")
+                    Log.w(TAG, "Server transient error during heartbeat sync (HTTP " + response.statusCode + "). Retrying with backoff.")
                     Result.retry()
                 }
                 else -> {
-                    Log.w(TAG, "Unexpected HTTP response ${response.statusCode}: ${response.errorMessage}. Retrying.")
+                    Log.w(TAG, "Unexpected HTTP response " + response.statusCode + ": " + response.errorMessage + ". Retrying.")
                     Result.retry()
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during secure heartbeat dispatch: ${e.message}", e)
+            Log.e(TAG, "Exception during secure heartbeat dispatch: " + e.message, e)
             Result.retry()
         }
     }
@@ -139,8 +133,8 @@ class DeviceHeartbeatWorker(
             val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
                 context.registerReceiver(null, filter)
             }
-            val level: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val scale: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
             if (level >= 0 && scale > 0) {
                 ((level / scale.toFloat()) * 100).toInt()
             } else {
