@@ -42,6 +42,7 @@ export class HeartbeatController {
       nonce,
       timestamp,
       signature,
+      androidVersion,
       appVersion,
       managementStatus,
       batteryPercent,
@@ -189,6 +190,10 @@ export class HeartbeatController {
     const net = networkType || networkConnectivity;
     if (net) {
       enrollment.networkType = String(net);
+    }
+
+    if (androidVersion) {
+      enrollment.androidVersion = String(androidVersion);
     }
 
     if (appVersion) {
