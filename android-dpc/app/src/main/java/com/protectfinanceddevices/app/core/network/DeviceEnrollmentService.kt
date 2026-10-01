@@ -131,30 +131,43 @@ class DeviceEnrollmentService(
                 )
             }
 
-            // Save successful enrollment into local Room DB
-            val verifyData = completeResp.data.getJSONObject("data")
-            val enrObj = verifyData.optJSONObject("enrollment")
-
-            val deviceId = enrObj?.optString("deviceId", "dev-hw-local") ?: "dev-hw-local"
-            val customerId = enrObj?.optString("customerId", "cust-local") ?: "cust-local"
-            val agreementId = enrObj?.optString("agreementId", "agr-local") ?: "agr-local"
+            // Persist only server-authoritative enrollment identifiers.
+            // Enrollment itself does not prove the device is online; the first
+            // successful heartbeat will establish last-seen/online state.
+            val completeData = completeResp.data.getJSONObject("data")
+            val serverEnrollmentId = completeData.optString("enrollmentId").takeIf { it.isNotBlank() }
+                ?: return EnrollmentResult.Failure("Server returned no enrollment ID")
+            val deviceId = completeData.optString("deviceId").takeIf { it.isNotBlank() }
+                ?: return EnrollmentResult.Failure("Server returned no device ID")
+            val customerId = completeData.optString("customerId").takeIf { it.isNotBlank() }
+                ?: return EnrollmentResult.Failure("Server returned no customer ID")
+            val agreementId = completeData.optString("agreementId").takeIf { it.isNotBlank() }
+                ?: return EnrollmentResult.Failure("Server returned no agreement ID")
 
             val enrollmentEntity = DeviceEnrollmentEntity(
-                enrollmentId = enrollmentId,
+                enrollmentId = serverEnrollmentId,
                 deviceId = deviceId,
                 customerId = customerId,
                 agreementId = agreementId,
                 enrollmentStatus = "ACTIVE",
                 managementMode = "UNMANAGED",
                 serverUrl = ApiConfig.DEFAULT_BASE_URL,
-                lastSyncTimestamp = System.currentTimeMillis()
+                lastSyncTimestamp = 0L
             )
             database.deviceEnrollmentDao().saveEnrollment(enrollmentEntity)
 
-            // Also update local device entity if present
+            // Keep the local device offline until the server acknowledges a heartbeat.
             val localDev = database.deviceDao().getDeviceById(deviceId)
             if (localDev != null) {
-                database.deviceDao().updateDevice(localDev.copy(enrollmentStatus = "ACTIVE", isOnline = true))
+                database.deviceDao().updateDevice(
+                    localDev.copy(
+                        enrollmentStatus = "ACTIVE",
+                        managementMode = "UNMANAGED",
+                        enrollmentPublicKey = publicKeyPem,
+                        lastSeenTimestamp = 0L,
+                        isOnline = false
+                    )
+                )
             } else {
                 database.deviceDao().insertDevice(
                     DeviceEntity(
@@ -166,7 +179,7 @@ class DeviceEnrollmentService(
                         enrollmentStatus = "ACTIVE",
                         managementMode = "UNMANAGED",
                         enrollmentPublicKey = publicKeyPem,
-                        lastSeenTimestamp = System.currentTimeMillis(),
+                        lastSeenTimestamp = 0L,
                         batteryPercent = 0,
                         isOnline = false,
                         simCarrier = null,
@@ -175,7 +188,10 @@ class DeviceEnrollmentService(
                 )
             }
 
-            return EnrollmentResult.Success(enrollmentId, "Device enrollment cryptographically verified and activated.")
+            return EnrollmentResult.Success(
+                serverEnrollmentId,
+                "Device enrollment verified. Waiting for first heartbeat to confirm online status."
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Enrollment verification error: ${e.message}", e)
             return EnrollmentResult.Failure(e.message ?: "Enrollment error")
