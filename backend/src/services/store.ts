@@ -29,7 +29,8 @@ export function generateInstallmentSchedule(
   arg2: number,
   arg3: number,
   arg4?: number | string,
-  arg5?: string
+  arg5?: string,
+  firstDueDateStr?: string
 ): InstallmentRecord[] {
   let financedAmount: number;
   let numberOfInstallments: number;
@@ -53,12 +54,18 @@ export function generateInstallmentSchedule(
   const baseMonthlyAmount = Math.floor((financedAmount / numberOfInstallments) * 100) / 100;
   let accumulated = 0;
 
-  const [year, month, day] = (startDateStr || '2026-01-01').split('-').map(Number);
+  const baseDate = firstDueDateStr || startDateStr || '2026-01-01';
+  const [year, month, day] = baseDate.split('-').map(Number);
   const startObj = new Date(Date.UTC(year || 2026, (month || 1) - 1, day || 1));
+  const useFirstDueDateAsAnchor = Boolean(firstDueDateStr);
 
   for (let i = 1; i <= numberOfInstallments; i++) {
     const dueObj = new Date(startObj);
-    dueObj.setUTCMonth(dueObj.getUTCMonth() + i);
+    if (!useFirstDueDateAsAnchor) {
+      dueObj.setUTCMonth(dueObj.getUTCMonth() + i);
+    } else if (i > 1) {
+      dueObj.setUTCMonth(dueObj.getUTCMonth() + (i - 1));
+    }
     const dueDateStr = dueObj.toISOString().split('T')[0];
 
     let amount = baseMonthlyAmount;
