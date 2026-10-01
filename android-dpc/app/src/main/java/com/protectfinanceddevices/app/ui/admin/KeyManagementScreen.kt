@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import com.protectfinanceddevices.app.core.storage.entities.DeviceEntity
 import com.protectfinanceddevices.app.core.network.ApiClient
 import com.protectfinanceddevices.app.core.network.ApiConfig
 import com.protectfinanceddevices.app.core.network.AuthSessionStore
@@ -30,6 +31,7 @@ private data class ControlKeyUi(
 @Composable
 fun KeyManagementScreen(
     sessionStore: AuthSessionStore,
+    devices: List<DeviceEntity>,
     onBack: () -> Unit,
     onSessionExpired: () -> Unit
 ) {
@@ -40,6 +42,8 @@ fun KeyManagementScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var issuedKey by remember { mutableStateOf<String?>(null) }
     var expiresInDays by remember { mutableStateOf("30") }
+    var selectedDeviceId by remember { mutableStateOf<String?>(null) }
+    var showDevicePicker by remember { mutableStateOf(false) }
     var refreshNonce by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(refreshNonce) {
@@ -123,6 +127,32 @@ fun KeyManagementScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                         Spacer(Modifier.height(14.dp))
+                        OutlinedButton(
+                            onClick = { showDevicePicker = true },
+                            enabled = !busy && devices.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Smartphone, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                devices.find { it.id == selectedDeviceId }?.let {
+                                    "${it.manufacturer} ${it.model}"
+                                } ?: if (devices.isEmpty()) {
+                                    "No devices in server inventory"
+                                } else {
+                                    "Select device to bind this key"
+                                }
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Each issued key is bound to exactly one server device. The customer device must later present the same key together with its enrollment identity.",
+                            color = Slate400,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = expiresInDays,
                             onValueChange = { expiresInDays = it.filter(Char::isDigit).take(3) },
@@ -135,8 +165,13 @@ fun KeyManagementScreen(
                             onClick = {
                                 val token = sessionStore.accessToken
                                 val days = expiresInDays.toIntOrNull()
+                                val deviceId = selectedDeviceId
                                 if (token.isNullOrBlank()) {
                                     onSessionExpired()
+                                    return@Button
+                                }
+                                if (deviceId.isNullOrBlank()) {
+                                    error = "Select a device before issuing a control key."
                                     return@Button
                                 }
                                 if (days == null || days !in 1..365) {
@@ -149,7 +184,9 @@ fun KeyManagementScreen(
                                     error = null
                                     val response = apiClient.post(
                                         ApiConfig.ENDPOINT_CONTROL_KEYS,
-                                        org.json.JSONObject().put("expiresInDays", days),
+                                        org.json.JSONObject()
+                                            .put("deviceId", deviceId)
+                                            .put("expiresInDays", days),
                                         token
                                     )
                                     busy = false
@@ -250,6 +287,44 @@ fun KeyManagementScreen(
                 }
             }
         }
+    }
+
+    if (showDevicePicker) {
+        AlertDialog(
+            onDismissRequest = { showDevicePicker = false },
+            title = { Text("Select Device") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    devices.forEach { device ->
+                        OutlinedButton(
+                            onClick = {
+                                selectedDeviceId = device.id
+                                showDevicePicker = false
+                                error = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    "${device.manufacturer} ${device.model}",
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "ID: ${device.id} • ${device.enrollmentStatus}",
+                                    color = Slate400,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDevicePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     issuedKey?.let { rawKey ->
