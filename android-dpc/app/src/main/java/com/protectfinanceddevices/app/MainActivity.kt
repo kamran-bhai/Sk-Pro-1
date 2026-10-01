@@ -709,53 +709,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
 
-
-                                        val now =
-                                            System.currentTimeMillis()
-
-                                        val command =
-                                            DeviceCommandEntity(
-
-                                                commandId =
-                                                    UUID.randomUUID()
-                                                        .toString(),
-
-                                                deviceId = deviceId,
-
-                                                commandType =
-                                                    "STATUS_REQUEST",
-
-                                                status =
-                                                    "ACKNOWLEDGED",
-
-                                                nonce =
-                                                    UUID.randomUUID()
-                                                        .toString()
-                                                        .replace("-", ""),
-
-                                                serverSignature =
-                                                    "ECDSA_NIST_P256_SERVER_SIG",
-
-                                                issuedAt = now,
-
-                                                expiresAt =
-                                                    now + 86400000,
-
-                                                executionLog =
-                                                    "Diagnostic status requested"
-                                            )
-
-                                        database
-                                            .deviceCommandDao()
-                                            .insertCommand(command)
-                                    }
-                                },
-
-                                statusRefreshing = statusRefreshing,
-                                statusError = statusError,
-
                                 onRequestLocation = {
-
                                     lifecycleScope.launch(
                                         Dispatchers.IO
                                     ) {
