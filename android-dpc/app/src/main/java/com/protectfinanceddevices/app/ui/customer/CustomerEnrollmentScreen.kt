@@ -1,6 +1,7 @@
 package com.protectfinanceddevices.app.ui.customer
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,6 +80,23 @@ fun CustomerEnrollmentScreen(
                     }
                 }
             )
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (!granted) {
+            enrollmentError = "Location permission was denied. Location tracking will remain unavailable until you enable it in Android Settings."
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+        } else {
+            startEnrollmentFlow()
         }
     }
 
@@ -325,6 +343,7 @@ fun CustomerEnrollmentScreen(
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text("ALLOWED MONITORING & POLICIES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldGreen)
                                     Text("• Battery level & network connectivity status", fontSize = 11.sp, color = Slate300())
+                                    Text("• Device location while the visible location service is active", fontSize = 11.sp, color = Slate300())
                                     Text("• SIM carrier identity (for swap/relocation alerts)", fontSize = 11.sp, color = Slate300())
                                     Text("• Installment due dates & overdue enforcement kiosk lock", fontSize = 11.sp, color = Slate300())
                                     Text("• Emergency calls (911/112) remain unrestricted at all times", fontSize = 11.sp, color = Slate300())
@@ -448,6 +467,22 @@ fun CustomerEnrollmentScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = PrimaryBlue)
+                                Column {
+                                    Text("LOCATION ACCESS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Slate100)
+                                    Text("Uses Android location services for enrolled-device location updates. A persistent notification is shown while continuous tracking is active.", fontSize = 11.sp, color = Slate400)
+                                }
+                            }
+
+                            // Permission 4
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Slate950, RoundedCornerShape(8.dp))
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(Icons.Default.Lock, contentDescription = null, tint = AmberWarning)
                                 Column {
                                     Text("DEVICE POLICY CONTROLLER (DPC)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Slate100)
@@ -479,7 +514,7 @@ fun CustomerEnrollmentScreen(
                                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                                         androidx.core.content.ContextCompat.checkSelfPermission(
                                             context,
-                                            Manifest.permission.READ_PHONE_STATE
+                                            Manifest.permission.ACCESS_FINE_LOCATION
                                         ) != PackageManager.PERMISSION_GRANTED
                                     ) {
                                         phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
