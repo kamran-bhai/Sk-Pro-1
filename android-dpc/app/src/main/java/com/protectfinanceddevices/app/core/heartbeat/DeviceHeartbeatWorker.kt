@@ -83,7 +83,16 @@ class DeviceHeartbeatWorker(
                 in 200..299 -> {
                     Log.i(TAG, "Device heartbeat acknowledged by server. Updating verified local telemetry.")
                     enrollmentDao.updateLastSync(enrollmentId, timestamp)
-                    enrollmentDao.updateEnrollmentStatus(enrollmentId, "ACTIVE")
+
+                    val heartbeatData = response.data?.optJSONObject("data")
+                    val authoritativeStatus =
+                        heartbeatData?.optString("enrollmentStatus")
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "ACTIVE"
+                    enrollmentDao.updateEnrollmentStatus(
+                        enrollmentId,
+                        authoritativeStatus
+                    )
 
                     val localDevice = deviceDao.getDeviceById(enrollment.deviceId)
                     if (localDevice != null) {
@@ -94,7 +103,6 @@ class DeviceHeartbeatWorker(
                         )
                     }
 
-                    val heartbeatData = response.data?.optJSONObject("data")
                     val pendingCommands = heartbeatData?.optJSONArray("pendingCommands") ?: JSONArray()
                     processPendingCommands(
                         enrollmentId = enrollmentId,
