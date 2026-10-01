@@ -1,7 +1,6 @@
 package com.protectfinanceddevices.app.ui.customer
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,6 +82,17 @@ fun CustomerEnrollmentScreen(
         }
     }
 
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startEnrollmentFlow()
+        } else {
+            enrollmentError = "SIM change alerts are unavailable because Phone permission was denied. Enrollment can continue without SIM telemetry."
+            startEnrollmentFlow()
+        }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -96,17 +106,6 @@ fun CustomerEnrollmentScreen(
         ) {
             phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
         } else {
-            startEnrollmentFlow()
-        }
-    }
-
-    val phonePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            startEnrollmentFlow()
-        } else {
-            enrollmentError = "SIM change alerts are unavailable because Phone permission was denied. Enrollment can continue without SIM telemetry."
             startEnrollmentFlow()
         }
     }
