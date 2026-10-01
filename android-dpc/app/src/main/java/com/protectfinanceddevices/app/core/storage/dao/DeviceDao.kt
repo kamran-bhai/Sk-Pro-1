@@ -46,6 +46,19 @@ interface DeviceDao {
     @Query("UPDATE devices SET enrollmentStatus = :status WHERE id = :deviceId")
     suspend fun updateDeviceStatus(deviceId: String, status: String)
 
+    @Query("UPDATE devices SET enrollmentStatus = :status, managementMode = :managementMode, androidVersion = :androidVersion, lastSeenTimestamp = :lastSeenTimestamp, batteryPercent = :batteryPercent, isOnline = :isOnline, simCarrier = :simCarrier, usbDebuggingActive = :usbDebuggingActive WHERE id = :deviceId")
+    suspend fun updateStatusSnapshot(
+        deviceId: String,
+        status: String,
+        managementMode: String,
+        androidVersion: String,
+        lastSeenTimestamp: Long,
+        batteryPercent: Int,
+        isOnline: Boolean,
+        simCarrier: String?,
+        usbDebuggingActive: Boolean
+    )
+
     @Query("""
         UPDATE devices
         SET lastSeenTimestamp = :lastSeenTimestamp,
