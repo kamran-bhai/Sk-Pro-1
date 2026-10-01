@@ -117,6 +117,49 @@ fun AdminDashboardScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
+                    text = "QUICK ACTIONS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate400,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onAddDevice,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryBlue
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.AddToQueue,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Device")
+                    }
+
+                    OutlinedButton(
+                        onClick = onKeyManagement,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Key,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Control Key")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
                     text = "MAIN MENU",
                     style = MaterialTheme.typography.labelSmall,
                     color = Slate400,
