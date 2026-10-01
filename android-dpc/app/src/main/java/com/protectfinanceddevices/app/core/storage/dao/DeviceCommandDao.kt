@@ -16,6 +16,9 @@ interface DeviceCommandDao {
     @Query("SELECT * FROM device_commands WHERE deviceId = :deviceId ORDER BY issuedAt DESC")
     fun getCommandsForDevice(deviceId: String): Flow<List<DeviceCommandEntity>>
 
+    @Query("SELECT * FROM device_commands WHERE commandId = :commandId LIMIT 1")
+    suspend fun getCommandById(commandId: String): DeviceCommandEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCommand(command: DeviceCommandEntity)
 
