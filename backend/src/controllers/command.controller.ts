@@ -60,13 +60,6 @@ export class CommandController {
 
     db.commands.unshift(newCommand);
 
-    // Update enrollment status
-    if (commandType === 'LOCK_DEVICE') {
-      enrollment.enrollmentStatus = 'LOCKED';
-    } else if (commandType === 'UNLOCK_DEVICE') {
-      enrollment.enrollmentStatus = 'ACTIVE';
-    }
-
     AuditService.log({
       actorId: req.user?.userId,
       actorEmail: req.user?.email,
@@ -104,46 +97,170 @@ export class CommandController {
    * Android client acknowledges command execution over TLS.
    */
   static async acknowledgeCommand(req: Request, res: Response): Promise<void> {
-    const { commandId, executionStatus, deviceSignature, failureReason } = req.body;
+    const {
+      commandId,
+      enrollmentId,
+      executionStatus,
+      deviceSignature,
+      failureReason
+    } = req.body;
+
+    if (
+      typeof commandId !== 'string' ||
+      typeof enrollmentId !== 'string' ||
+      !['SUCCESS', 'FAILED'].includes(executionStatus) ||
+      typeof deviceSignature !== 'string' ||
+      deviceSignature.length < 16
+    ) {
+      res.status(400).json({
+        success: false,
+        error: 'INVALID_COMMAND_ACK',
+        message: 'commandId, enrollmentId, executionStatus and deviceSignature are required.'
+      });
+      return;
+    }
 
     const command = db.commands.find(c => c.id === commandId);
     if (!command) {
-      res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Command ID not found' });
+      res.status(404).json({
+        success: false,
+        error: 'NOT_FOUND',
+        message: 'Command ID not found.'
+      });
+      return;
+    }
+
+    if (command.enrollmentId !== enrollmentId) {
+      res.status(409).json({
+        success: false,
+        error: 'COMMAND_ENROLLMENT_MISMATCH',
+        message: 'Command does not belong to the supplied enrollment.'
+      });
+      return;
+    }
+
+    const enrollment = db.enrollments.find(e => e.id === enrollmentId);
+    if (!enrollment) {
+      res.status(404).json({
+        success: false,
+        error: 'ENROLLMENT_NOT_FOUND',
+        message: 'Enrollment not found.'
+      });
+      return;
+    }
+
+    if (command.status === 'ACKNOWLEDGED' || command.status === 'FAILED') {
+      res.json({
+        success: true,
+        data: {
+          commandId,
+          status: command.status,
+          message: 'Command acknowledgment was already recorded.'
+        }
+      });
+      return;
+    }
+
+    if (new Date(command.expiresAt).getTime() <= Date.now()) {
+      command.status = 'EXPIRED';
+      command.failureReason = 'COMMAND_EXPIRED';
+      db.save();
+      res.status(410).json({
+        success: false,
+        error: 'COMMAND_EXPIRED',
+        message: 'This command has expired.'
+      });
+      return;
+    }
+
+    if (!enrollment.devicePublicKeyPem) {
+      res.status(400).json({
+        success: false,
+        error: 'DEVICE_KEY_NOT_REGISTERED',
+        message: 'No registered device public key is available for command acknowledgment.'
+      });
+      return;
+    }
+
+    const canonicalAck = `${command.id}|${enrollment.id}|${executionStatus}|${command.nonce}`;
+    const validDeviceSignature = CryptoService.verifyDeviceSignature(
+      canonicalAck,
+      deviceSignature,
+      enrollment.devicePublicKeyPem
+    );
+
+    if (!validDeviceSignature) {
+      AuditService.log({
+        action: 'COMMAND_ACK_INVALID_SIGNATURE',
+        entityName: 'device_commands',
+        entityId: commandId,
+        changes: { enrollmentId, executionStatus },
+        ipAddress: req.ip
+      });
+      res.status(401).json({
+        success: false,
+        error: 'INVALID_DEVICE_SIGNATURE',
+        message: 'Command acknowledgment signature could not be verified.'
+      });
       return;
     }
 
     command.status = executionStatus === 'SUCCESS' ? 'ACKNOWLEDGED' : 'FAILED';
     command.acknowledgedAt = new Date().toISOString();
-    command.failureReason = failureReason;
+    command.failureReason = executionStatus === 'FAILED'
+      ? (failureReason || 'DEVICE_REPORTED_FAILURE')
+      : undefined;
 
-    const enrollment = db.enrollments.find(e => e.id === command.enrollmentId);
-    if (enrollment) {
-      enrollment.lastCommandStatus = command.status;
-      const eventType = command.status === 'ACKNOWLEDGED' ? 'COMMAND_ACKNOWLEDGED' : 'COMMAND_FAILED';
-      const description =
-        command.status === 'ACKNOWLEDGED'
-          ? `Command ${command.commandType} successfully executed and acknowledged by device.`
-          : `Command ${command.commandType} execution failed on device: ${failureReason || 'Unknown error'}`;
+    enrollment.lastCommandStatus = command.status;
 
-      db.deviceActivities.unshift({
-        id: `act-${crypto.randomBytes(4).toString('hex')}`,
-        deviceId: enrollment.deviceId,
-        enrollmentId: enrollment.id,
-        eventType,
-        description,
-        details: { commandId, commandType: command.commandType, executionStatus, failureReason },
-        timestamp: new Date().toISOString()
-      });
+    if (executionStatus === 'SUCCESS' && command.commandType === 'LOCK_DEVICE') {
+      enrollment.enrollmentStatus = 'LOCKED' as any;
+      enrollment.lastSecurityEvent = 'REMOTE_LOCK_ACKNOWLEDGED';
+    } else if (executionStatus === 'SUCCESS' && command.commandType === 'UNLOCK_DEVICE') {
+      enrollment.enrollmentStatus = 'ACTIVE';
+      enrollment.lastSecurityEvent = 'REMOTE_UNLOCK_ACKNOWLEDGED';
+    } else if (executionStatus === 'FAILED') {
+      enrollment.lastSecurityEvent = 'REMOTE_COMMAND_FAILED';
     }
+
+    db.deviceActivities.unshift({
+      id: `act-${crypto.randomBytes(4).toString('hex')}`,
+      deviceId: enrollment.deviceId,
+      enrollmentId: enrollment.id,
+      eventType: command.status === 'ACKNOWLEDGED' ? 'COMMAND_ACKNOWLEDGED' : 'COMMAND_FAILED',
+      description: command.status === 'ACKNOWLEDGED'
+        ? `Command ${command.commandType} was executed and cryptographically acknowledged by the enrolled device.`
+        : `Command ${command.commandType} failed on the enrolled device: ${command.failureReason || 'Unknown error'}`,
+      details: {
+        commandId,
+        commandType: command.commandType,
+        executionStatus,
+        failureReason
+      },
+      timestamp: new Date().toISOString()
+    });
 
     AuditService.log({
       action: `COMMAND_ACK_${executionStatus}`,
       entityName: 'device_commands',
       entityId: commandId,
-      changes: { executionStatus, failureReason },
+      changes: {
+        enrollmentId,
+        commandType: command.commandType,
+        executionStatus,
+        failureReason
+      },
       ipAddress: req.ip
     });
 
-    res.json({ success: true, message: 'Command acknowledgment recorded' });
-  }
-}
+    db.save();
+
+    res.json({
+      success: true,
+      data: {
+        commandId,
+        status: command.status,
+        acknowledgedAt: command.acknowledgedAt
+      }
+    });
+  }}
