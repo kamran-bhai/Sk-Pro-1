@@ -1368,6 +1368,7 @@ class MainActivity : ComponentActivity() {
                         ) {
                             KeyManagementScreen(
                                 sessionStore = authSessionStore,
+                                devices = devices,
                                 onBack = {
                                     navController.popBackStack()
                                 },
