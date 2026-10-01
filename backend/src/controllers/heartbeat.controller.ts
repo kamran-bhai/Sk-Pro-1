@@ -311,6 +311,7 @@ export class HeartbeatController {
       data: {
         serverTimestamp: nowIso,
         deviceOnlineStatus: 'ONLINE',
+        enrollmentStatus: enrollment.enrollmentStatus,
         lastSuccessfulSync: enrollment.lastSuccessfulSync,
         pendingCommands: pendingCommands.map(c => ({
           commandId: c.id,
