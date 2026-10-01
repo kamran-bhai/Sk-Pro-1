@@ -16,6 +16,7 @@ import androidx.work.WorkerParameters
 import com.protectfinanceddevices.app.core.crypto.AndroidKeyStoreManager
 import com.protectfinanceddevices.app.core.dpc.RemoteCommandExecutor
 import com.protectfinanceddevices.app.core.storage.entities.DeviceCommandEntity
+import com.protectfinanceddevices.app.core.location.LocationTracker
 import com.protectfinanceddevices.app.core.storage.dao.DeviceCommandDao
 import org.json.JSONArray
 import java.time.Instant
@@ -66,6 +67,7 @@ class DeviceHeartbeatWorker(
             val appVersion = ApiConfig.CLIENT_APP_VERSION
             val managementStatus = enrollment.managementMode
             val simSnapshot = readSimSnapshot()
+            val location = LocationTracker(context).readLast()
 
             val canonicalData = "$enrollmentId|$nonce|$timestamp"
             val signature = keyStoreManager.signData(canonicalData.toByteArray(Charsets.UTF_8))
@@ -83,6 +85,13 @@ class DeviceHeartbeatWorker(
                 simSnapshot.carrier?.let { put("simCarrier", it) }
                 simSnapshot.fingerprint?.let { put("simFingerprint", it) }
                 simSnapshot.subscriptionCount?.let { put("simSubscriptionCount", it) }
+                location?.let {
+                    put("latitude", it.latitude)
+                    put("longitude", it.longitude)
+                    put("locationAccuracyMeters", it.accuracyMeters)
+                    put("locationCapturedAt", it.capturedAt)
+                    put("locationProvider", it.provider)
+                }
             }
 
             val serverUrl = enrollment.serverUrl.ifEmpty { ApiConfig.DEFAULT_BASE_URL }
