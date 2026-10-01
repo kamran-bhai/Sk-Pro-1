@@ -2,6 +2,136 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { db, AgreementRecord, PaymentRecord, generateInstallmentSchedule, EnrollmentRecord } from '../services/store.js';
 import { AuditService } from '../services/audit.service.js';
+import { CryptoService } from '../services/crypto.service.js';
+
+export function syncOverdueFinancingState(): void {
+  const now = Date.now();
+
+  for (const agreement of db.agreements) {
+    if (!['ACTIVE', 'OVERDUE'].includes(agreement.status)) continue;
+
+    const installments = db.installments
+      .filter(i => i.agreementId === agreement.id && i.status !== 'PAID' && i.status !== 'WAIVED')
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+    let agreementIsOverdue = false;
+
+    for (const installment of installments) {
+      const dueTime = new Date(installment.dueDate + 'T23:59:59Z').getTime();
+      const graceDays = Math.max(0, Number((agreement as any).gracePeriodDays ?? 5));
+      const restrictionTime = dueTime + graceDays * 24 * 60 * 60 * 1000;
+
+      if (now > restrictionTime && installment.status !== 'OVERDUE') {
+        installment.status = 'OVERDUE';
+        agreementIsOverdue = true;
+
+        const existingAlert = db.alerts.find(
+          a => a.agreementId === agreement.id &&
+               a.alertType === 'PAYMENT_OVERDUE' &&
+               a.details.includes('installment #' + installment.installmentNumber)
+        );
+
+        if (!existingAlert) {
+          db.alerts.unshift({
+            id: `alt-${crypto.randomBytes(3).toString('hex')}`,
+            enrollmentId: db.enrollments.find(e => e.agreementId === agreement.id)?.id || '',
+            agreementId: agreement.id,
+            severity: 'CRITICAL',
+            alertType: 'PAYMENT_OVERDUE',
+            title: 'Payment Overdue',
+            details: `Installment #${installment.installmentNumber} is overdue after the ${graceDays}-day grace period.`,
+            isAcknowledged: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+
+      if (installment.status === 'OVERDUE') {
+        agreementIsOverdue = true;
+      }
+    }
+
+    if (!agreementIsOverdue) continue;
+
+    agreement.status = 'OVERDUE';
+    agreement.updatedAt = new Date().toISOString();
+
+    const customer = db.customers.find(c => c.id === agreement.customerId);
+    if (customer && customer.status !== 'COMPLETED') {
+      customer.status = 'OVERDUE';
+      customer.updatedAt = new Date().toISOString();
+    }
+
+    const enrollment = db.enrollments.find(e => e.agreementId === agreement.id);
+    if (!enrollment || !['ACTIVE', 'DEVICE_OWNER', 'DEVICE_ADMIN'].includes(enrollment.enrollmentStatus) &&
+        !['DEVICE_OWNER', 'DEVICE_ADMIN'].includes(enrollment.managementMode)) {
+      continue;
+    }
+
+    // Only managed devices may receive a remote lock command.
+    if (!['DEVICE_OWNER', 'DEVICE_ADMIN'].includes(enrollment.managementMode)) {
+      continue;
+    }
+
+    if (enrollment.enrollmentStatus === 'LOCKED') continue;
+
+    const alreadyPending = db.commands.some(
+      c => c.enrollmentId === enrollment.id &&
+           c.commandType === 'LOCK_DEVICE' &&
+           ['PENDING', 'SENT'].includes(c.status)
+    );
+    if (alreadyPending) continue;
+
+    const commandId = `cmd-${crypto.randomUUID()}`;
+    const nonce = CryptoService.generateNonce();
+    const sequence = CryptoService.getNextSequence().toString();
+    const expiresAtMs = now + 24 * 60 * 60 * 1000;
+
+    const serverSignature = CryptoService.signCommand({
+      commandId,
+      enrollmentId: enrollment.id,
+      commandType: 'LOCK_DEVICE',
+      nonce,
+      sequence,
+      expiresAt: expiresAtMs
+    });
+
+    db.commands.unshift({
+      id: commandId,
+      enrollmentId: enrollment.id,
+      commandType: 'LOCK_DEVICE',
+      payload: {
+        reason: 'FINANCING_OVERDUE',
+        agreementId: agreement.id,
+        agreementCode: agreement.agreementCode,
+        installmentNumber: installments.find(i => i.status === 'OVERDUE')?.installmentNumber
+      },
+      nonce,
+      monotonicSequence: sequence,
+      serverSignature,
+      status: 'PENDING',
+      issuedBy: 'system',
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      createdAt: new Date().toISOString()
+    });
+
+    enrollment.lastSecurityEvent = 'FINANCING_OVERDUE_LOCK_PENDING';
+
+    AuditService.log({
+      action: 'FINANCING_OVERDUE_LOCK_QUEUED',
+      entityName: 'device_commands',
+      entityId: commandId,
+      changes: {
+        agreementId: agreement.id,
+        enrollmentId: enrollment.id,
+        reason: 'FINANCING_OVERDUE',
+        managementMode: enrollment.managementMode
+      }
+    });
+  }
+
+  db.save();
+}
 
 export class FinanceController {
   /**
@@ -9,6 +139,7 @@ export class FinanceController {
    * Lists financing agreements. IDOR filtered if role is CUSTOMER.
    */
   static async listAgreements(req: Request, res: Response): Promise<void> {
+    syncOverdueFinancingState();
     let list = db.agreements.map(a => {
       const cust = db.customers.find(c => c.id === a.customerId);
       const dev = db.devices.find(d => d.id === a.deviceId);
@@ -38,6 +169,7 @@ export class FinanceController {
    * Detailed agreement view with complete installment schedule & payments.
    */
   static async getAgreementDetails(req: Request, res: Response): Promise<void> {
+    syncOverdueFinancingState();
     const { id } = req.params;
 
     const agreement = db.agreements.find(a => a.id === id || a.agreementCode === id);
