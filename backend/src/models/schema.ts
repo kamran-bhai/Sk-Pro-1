@@ -59,7 +59,7 @@ export interface EnrollmentRecord {
   androidVersion?: string;
   appVersion?: string;
   managementMode: 'DEVICE_OWNER' | 'DEVICE_ADMIN' | 'UNMANAGED';
-  enrollmentStatus: 'PENDING' | 'AWAITING_CUSTOMER' | 'AWAITING_DEVICE' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'EXPIRED';
+  enrollmentStatus: 'PENDING' | 'AWAITING_CUSTOMER' | 'AWAITING_DEVICE' | 'ACTIVE' | 'LOCKED' | 'SUSPENDED' | 'REVOKED' | 'EXPIRED';
   fcmToken?: string;
   lastHeartbeatAt?: string;
   lastSeenAt?: string;
