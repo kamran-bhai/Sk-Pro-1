@@ -751,6 +751,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
 
+                                statusRefreshing = statusRefreshing,
+                                statusError = statusError,
+
                                 onRequestLocation = {
 
                                     lifecycleScope.launch(
