@@ -10,6 +10,11 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.protectfinanceddevices.app.core.crypto.AndroidKeyStoreManager
+import com.protectfinanceddevices.app.core.dpc.RemoteCommandExecutor
+import com.protectfinanceddevices.app.core.storage.entities.DeviceCommandEntity
+import com.protectfinanceddevices.app.core.storage.dao.DeviceCommandDao
+import org.json.JSONArray
+import java.time.Instant
 import com.protectfinanceddevices.app.core.network.ApiClient
 import com.protectfinanceddevices.app.core.network.ApiConfig
 import com.protectfinanceddevices.app.core.storage.AppDatabase
@@ -25,6 +30,7 @@ class DeviceHeartbeatWorker(
 
     private val keyStoreManager = AndroidKeyStoreManager()
     private val database = AppDatabase.getDatabase(context)
+    private val commandExecutor = RemoteCommandExecutor(context)
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         Log.i(TAG, "Executing scheduled secure device heartbeat worker...")
@@ -88,6 +94,16 @@ class DeviceHeartbeatWorker(
                         )
                     }
 
+                    val heartbeatData = response.data?.optJSONObject("data")
+                    val pendingCommands = heartbeatData?.optJSONArray("pendingCommands") ?: JSONArray()
+                    processPendingCommands(
+                        enrollmentId = enrollmentId,
+                        deviceId = enrollment.deviceId,
+                        serverUrl = serverUrl,
+                        commands = pendingCommands,
+                        commandDao = enrollmentDao.let { database.deviceCommandDao() }
+                    )
+
                     Result.success()
                 }
                 401 -> {
@@ -116,6 +132,111 @@ class DeviceHeartbeatWorker(
         } catch (e: Exception) {
             Log.e(TAG, "Exception during secure heartbeat dispatch: " + e.message, e)
             Result.retry()
+        }
+    }
+
+    private suspend fun processPendingCommands(
+        enrollmentId: String,
+        deviceId: String,
+        serverUrl: String,
+        commands: JSONArray,
+        commandDao: DeviceCommandDao
+    ) {
+        for (index in 0 until commands.length()) {
+            val command = commands.optJSONObject(index) ?: continue
+            val commandId = command.optString("commandId").takeIf { it.isNotBlank() } ?: continue
+            val commandType = command.optString("commandType").takeIf { it.isNotBlank() } ?: continue
+            val nonce = command.optString("nonce").takeIf { it.isNotBlank() } ?: continue
+            val serverSignature = command.optString("serverSignature")
+            val expiresAtString = command.optString("expiresAt").takeIf { it.isNotBlank() } ?: continue
+
+            val expiresAt = try {
+                Instant.parse(expiresAtString).toEpochMilli()
+            } catch (_: Exception) {
+                Log.w(TAG, "Ignoring command " + commandId + ": invalid expiry timestamp.")
+                continue
+            }
+
+            val existing = commandDao.getCommandById(commandId)
+            if (existing?.status == "ACKNOWLEDGED") continue
+
+            val local = existing ?: DeviceCommandEntity(
+                commandId = commandId,
+                deviceId = deviceId,
+                commandType = commandType,
+                status = "PENDING",
+                nonce = nonce,
+                serverSignature = serverSignature,
+                issuedAt = System.currentTimeMillis(),
+                expiresAt = expiresAt
+            )
+
+            if (existing == null) {
+                commandDao.insertCommand(local)
+            }
+
+            if (System.currentTimeMillis() >= expiresAt) {
+                commandDao.updateCommandStatus(
+                    commandId,
+                    "EXPIRED",
+                    "Command expired before execution."
+                )
+                continue
+            }
+
+            val executionResult =
+                if (local.status == "SENT") {
+                    RemoteCommandExecutor.ExecutionResult(
+                        success = local.executionLog?.startsWith("DEVICE_LOCKED:") == true,
+                        reason = local.executionLog ?: "Previously executed; retrying acknowledgment."
+                    )
+                } else {
+                    commandExecutor.execute(commandType)
+                }
+
+            if (local.status != "SENT") {
+                commandDao.updateCommandStatus(
+                    commandId,
+                    "SENT",
+                    executionResult.reason
+                )
+            }
+
+            val executionStatus = if (executionResult.success) "SUCCESS" else "FAILED"
+            val ackCanonical =
+                commandId + "|" + enrollmentId + "|" + executionStatus + "|" + nonce
+            val deviceSignature = keyStoreManager.signData(
+                ackCanonical.toByteArray(Charsets.UTF_8)
+            )
+
+            val ackPayload = JSONObject().apply {
+                put("commandId", commandId)
+                put("enrollmentId", enrollmentId)
+                put("executionStatus", executionStatus)
+                put("deviceSignature", deviceSignature)
+                if (!executionResult.success) {
+                    put("failureReason", executionResult.reason)
+                }
+            }
+
+            val ackResponse = ApiClient(serverUrl).post(
+                ApiConfig.ENDPOINT_COMMAND_ACK,
+                ackPayload
+            )
+
+            if (ackResponse.isSuccess) {
+                commandDao.updateCommandStatus(
+                    commandId,
+                    if (executionResult.success) "ACKNOWLEDGED" else "FAILED",
+                    executionResult.reason
+                )
+            } else {
+                Log.w(
+                    TAG,
+                    "Command " + commandId + " executed locally but ACK was not accepted: " +
+                        (ackResponse.errorMessage ?: "unknown server error")
+                )
+            }
         }
     }
 
