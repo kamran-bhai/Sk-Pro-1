@@ -399,31 +399,7 @@ fun DeviceDetailsScreen(
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
-    }
 
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = Slate400, fontSize = 12.sp)
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            value,
-            color = Slate100,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-// Confirmation Dialog for Lock
     if (showLockDialog) {
         AlertDialog(
             onDismissRequest = { showLockDialog = false },
@@ -431,12 +407,12 @@ private fun DetailRow(label: String, value: String) {
             text = {
                 Column {
                     Text(
-                        "Are you sure you want to enforce lock on ${device.manufacturer} ${device.model}?",
+                        "Are you sure you want to enforce lock on " + device.manufacturer + " " + device.model + "?",
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "This will restrict the device to emergency calls and customer support contact. Reason:",
+                        "This will restrict the device according to supported Android device-management policy. Reason:",
                         fontSize = 12.sp,
                         color = Slate400
                     )
@@ -468,6 +444,26 @@ private fun DetailRow(label: String, value: String) {
             containerColor = Slate900,
             titleContentColor = Slate100,
             textContentColor = Slate200
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Slate400, fontSize = 12.sp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            value,
+            color = Slate100,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
