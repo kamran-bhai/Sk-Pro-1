@@ -29,6 +29,33 @@ export class CommandController {
       return;
     }
 
+    if (!['ACTIVE', 'LOCKED'].includes(enrollment.enrollmentStatus)) {
+      res.status(409).json({
+        success: false,
+        error: 'DEVICE_NOT_READY',
+        message: 'Remote commands require an ACTIVE or LOCKED enrollment.'
+      });
+      return;
+    }
+
+    if (enrollment.managementMode === 'UNMANAGED') {
+      res.status(409).json({
+        success: false,
+        error: 'DEVICE_MANAGEMENT_REQUIRED',
+        message: 'Remote lock requires Android Device Owner or active Device Admin management on the enrolled device.'
+      });
+      return;
+    }
+
+    if (commandType === 'UNLOCK_DEVICE') {
+      res.status(409).json({
+        success: false,
+        error: 'REMOTE_UNLOCK_UNSUPPORTED',
+        message: 'Android does not permit a normal enrolled application to silently unlock the system lock screen.'
+      });
+      return;
+    }
+
     const commandId = `cmd-${crypto.randomUUID()}`;
     const nonce = CryptoService.generateNonce();
     const sequence = CryptoService.getNextSequence().toString();
