@@ -126,6 +126,20 @@ async function startServer() {
     });
   });
 
+  // API 404 guard: never let unknown /api/* requests fall through to the SPA HTML.
+  // This keeps Android/API clients on a JSON contract even when a route is missing.
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/v1/')) {
+      res.status(404).json({
+        success: false,
+        error: 'API_ROUTE_NOT_FOUND',
+        message: \`API route not found: \${req.method} \${req.originalUrl}\`
+      });
+      return;
+    }
+    next();
+  });
+
   // Global API error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Unhandled server error:', err);
