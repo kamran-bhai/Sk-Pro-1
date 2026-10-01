@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Background location is intentionally not requested automatically; continuous tracking uses a visible location foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -41,6 +43,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Visible foreground service for continuous enrolled-device location updates -->
+        <service
+            android:name=".core.location.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <!-- Device Admin Receiver for Managed Device / Device Owner Policies -->
         <receiver
