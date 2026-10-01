@@ -1,4 +1,4 @@
-package com.protectfinancedevices.app.core.heartbeat
+package com.protectfinanceddevices.app.core.heartbeat
 
 import android.content.Context
 import android.content.Intent
