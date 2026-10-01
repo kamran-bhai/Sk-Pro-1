@@ -64,45 +64,6 @@ fun AddDeviceScreen(
         mutableStateOf("")
     }
 
-    var androidVersion by remember {
-        mutableStateOf("")
-    }
-
-    var enrollmentPublicKey by remember {
-        mutableStateOf("")
-    }
-
-    var batteryPercent by remember {
-        mutableStateOf("0")
-    }
-
-    var simCarrier by remember {
-        mutableStateOf("")
-    }
-
-    var managementMode by remember {
-        mutableStateOf("UNMANAGED")
-    }
-
-    var managementMenuExpanded by remember {
-        mutableStateOf(false)
-    }
-
-    var enrollmentStatus by remember {
-        mutableStateOf("OFFLINE")
-    }
-
-    var statusMenuExpanded by remember {
-        mutableStateOf(false)
-    }
-
-    var isOnline by remember {
-        mutableStateOf(false)
-    }
-
-    var usbDebuggingActive by remember {
-        mutableStateOf(false)
-    }
 
     val canSave =
         selectedCustomer != null &&
@@ -271,216 +232,25 @@ fun AddDeviceScreen(
                 singleLine = true
             )
 
-            OutlinedTextField(
-                value = androidVersion,
-                onValueChange = {
-                    androidVersion = it
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("Android Version")
-                },
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = enrollmentPublicKey,
-                onValueChange = {
-                    enrollmentPublicKey = it
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("Enrollment Public Key")
-                },
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = batteryPercent,
-                onValueChange = {
-                    batteryPercent = it.filter { char ->
-                        char.isDigit()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("Battery Percentage")
-                },
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = simCarrier,
-                onValueChange = {
-                    simCarrier = it
-                },
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("SIM Carrier")
-                },
-                singleLine = true
-            )
-
-            Text(
-                text = "Management Mode",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                OutlinedButton(
-                    onClick = {
-                        managementMenuExpanded = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(managementMode)
-                }
-
-                DropdownMenu(
-                    expanded = managementMenuExpanded,
-                    onDismissRequest = {
-                        managementMenuExpanded = false
-                    }
-                ) {
-
-                    val modes = listOf(
-                        "UNMANAGED",
-                        "DEVICE_ADMIN",
-                        "DEVICE_OWNER"
-                    )
-
-                    modes.forEach { mode ->
-
-                        DropdownMenuItem(
-                            text = {
-                                Text(mode)
-                            },
-                            onClick = {
-                                managementMode = mode
-                                managementMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Text(
-                text = "Enrollment Status",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                OutlinedButton(
-                    onClick = {
-                        statusMenuExpanded = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(enrollmentStatus)
-                }
-
-                DropdownMenu(
-                    expanded = statusMenuExpanded,
-                    onDismissRequest = {
-                        statusMenuExpanded = false
-                    }
-                ) {
-
-                    val statuses = listOf(
-                        "OFFLINE",
-                        "ACTIVE",
-                        "LOCKED",
-                        "OVERDUE",
-                        "SUSPENDED",
-                        "COMPLETED"
-                    )
-
-                    statuses.forEach { status ->
-
-                        DropdownMenuItem(
-                            text = {
-                                Text(status)
-                            },
-                            onClick = {
-                                enrollmentStatus = status
-                                statusMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
-
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-
                     Text(
-                        text = "Device State",
+                        text = "Enrollment & telemetry",
                         style = MaterialTheme.typography.titleMedium
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-
-                        Column {
-                            Text("Online")
-
-                            Text(
-                                text = if (isOnline) {
-                                    "Device is online"
-                                } else {
-                                    "Device is offline"
-                                },
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-
-                        Switch(
-                            checked = isOnline,
-                            onCheckedChange = {
-                                isOnline = it
-                            }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-
-                        Column {
-                            Text("USB Debugging")
-
-                            Text(
-                                text = if (usbDebuggingActive) {
-                                    "Enabled"
-                                } else {
-                                    "Disabled"
-                                },
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-
-                        Switch(
-                            checked = usbDebuggingActive,
-                            onCheckedChange = {
-                                usbDebuggingActive = it
-                            }
-                        )
-                    }
+                    Text(
+                        text = "These values are created by the customer device after enrollment. They are not entered manually by the admin.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text("Status: UNENROLLED", style = MaterialTheme.typography.bodySmall)
+                    Text("Management: UNMANAGED", style = MaterialTheme.typography.bodySmall)
+                    Text("Online: OFFLINE", style = MaterialTheme.typography.bodySmall)
+                    Text("Battery / SIM / USB: unavailable until device reports them", style = MaterialTheme.typography.bodySmall)
                 }
             }
 
@@ -491,28 +261,20 @@ fun AddDeviceScreen(
             Button(
                 onClick = {
 
-                    val parsedBattery =
-                        batteryPercent
-                            .toIntOrNull()
-                            ?.coerceIn(0, 100)
-                            ?: 0
-
                     val device = DeviceEntity(
                         id = UUID.randomUUID().toString(),
                         customerId = selectedCustomer!!.id,
                         model = model.trim(),
                         manufacturer = manufacturer.trim(),
-                        androidVersion = androidVersion.trim(),
-                        enrollmentStatus = enrollmentStatus,
-                        managementMode = managementMode,
-                        enrollmentPublicKey = enrollmentPublicKey.trim(),
-                        lastSeenTimestamp = System.currentTimeMillis(),
-                        batteryPercent = parsedBattery,
-                        isOnline = isOnline,
-                        simCarrier = simCarrier.trim().ifBlank {
-                            null
-                        },
-                        usbDebuggingActive = usbDebuggingActive
+                        androidVersion = "",
+                        enrollmentStatus = "UNENROLLED",
+                        managementMode = "UNMANAGED",
+                        enrollmentPublicKey = "",
+                        lastSeenTimestamp = 0L,
+                        batteryPercent = 0,
+                        isOnline = false,
+                        simCarrier = null,
+                        usbDebuggingActive = false
                     )
 
                     onSaveDevice(device)
