@@ -191,7 +191,7 @@ export class FinanceController {
     db.agreements.push(newAgreement);
 
     // Auto-generate installment schedule with rounding adjustment
-    const schedule = generateInstallmentSchedule(agreementId, total, down, tenure, startDate);
+    const schedule = generateInstallmentSchedule(agreementId, total, down, tenure, startDate, nextDueDate);
     db.installments.push(...schedule);
 
     // Enrollment is a separate, explicit security step.
@@ -249,6 +249,11 @@ export class FinanceController {
       return;
     }
 
+    if (agreement.status === 'COMPLETED' || agreement.remainingAmount <= 0) {
+      res.status(400).json({ success: false, error: 'AGREEMENT_COMPLETED', message: 'This financing agreement is already completed' });
+      return;
+    }
+
     // Allocate payment to target installment or next pending/overdue installment
     const agreementInstallments = db.installments
       .filter(i => i.agreementId === agreement.id)
@@ -266,6 +271,34 @@ export class FinanceController {
         success: false,
         error: 'NO_PENDING_INSTALLMENT',
         message: 'No pending or overdue installment is available for this payment'
+      });
+      return;
+    }
+
+    if (targetInstallment.status === 'PAID' || targetInstallment.status === 'WAIVED') {
+      res.status(409).json({
+        success: false,
+        error: 'INSTALLMENT_ALREADY_SETTLED',
+        message: 'The selected installment is already settled'
+      });
+      return;
+    }
+
+    const expectedAmount = +(targetInstallment.amount + (targetInstallment.penaltyFee || 0)).toFixed(2);
+    if (Math.abs(payAmount - expectedAmount) > 0.009) {
+      res.status(400).json({
+        success: false,
+        error: 'PAYMENT_AMOUNT_MISMATCH',
+        message: 'Payment amount must exactly settle installment #' + targetInstallment.installmentNumber + ': ' + expectedAmount.toFixed(2)
+      });
+      return;
+    }
+
+    if (payAmount > agreement.remainingAmount + 0.009) {
+      res.status(400).json({
+        success: false,
+        error: 'PAYMENT_EXCEEDS_BALANCE',
+        message: 'Payment cannot exceed the agreement remaining balance'
       });
       return;
     }
