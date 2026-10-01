@@ -15,6 +15,39 @@ function isExpired(key: { expiresAt?: string }): boolean {
 export class DeviceControlKeyController {
   static issueKey(req: Request, res: Response): void {
     const { deviceId, enrollmentId, retailerId, expiresInDays = 30 } = req.body || {};
+
+    // A control key is allowed to be issued before enrollment, but when the
+    // admin supplies a deviceId it must refer to a real server-side device.
+    // This prevents keys from being bound to arbitrary client-supplied IDs.
+    if (deviceId && !db.devices.some(d => d.id === deviceId)) {
+      res.status(404).json({
+        success: false,
+        error: 'DEVICE_NOT_FOUND',
+        message: 'The selected device does not exist in the server inventory.'
+      });
+      return;
+    }
+
+    if (enrollmentId) {
+      const enrollment = db.enrollments.find(e => e.id === enrollmentId);
+      if (!enrollment) {
+        res.status(404).json({
+          success: false,
+          error: 'ENROLLMENT_NOT_FOUND',
+          message: 'The supplied enrollment does not exist.'
+        });
+        return;
+      }
+      if (deviceId && enrollment.deviceId !== deviceId) {
+        res.status(409).json({
+          success: false,
+          error: 'ENROLLMENT_DEVICE_MISMATCH',
+          message: 'The enrollment belongs to a different device.'
+        });
+        return;
+      }
+    }
+
     if (deviceId && db.deviceControlKeys.some(k => k.deviceId === deviceId && ['ISSUED', 'ACTIVATED'].includes(k.status))) {
       res.status(409).json({ success: false, error: 'DEVICE_ALREADY_HAS_CONTROL_KEY', message: 'This device already has an active control key.' });
       return;
