@@ -70,6 +70,8 @@ export interface EnrollmentRecord {
   networkType?: string;
   isOnline: boolean;
   simCarrier?: string;
+  simFingerprint?: string;
+  simSubscriptionCount?: number;
   usbDebuggingActive: boolean;
   enrolledAt?: string;
   revokedAt?: string;
