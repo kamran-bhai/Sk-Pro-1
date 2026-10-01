@@ -33,6 +33,14 @@ class DeviceLockManager(private val context: Context) {
 
     fun isDeviceOwner(): Boolean = dpm.isDeviceOwnerApp(context.packageName)
 
+    /** Executes a real system lock through Android DevicePolicyManager. */
+    fun lockDeviceNow() {
+        if (!isDeviceOwner() && !isDeviceAdminActive()) {
+            throw SecurityException("Device Admin or Device Owner authority is required.")
+        }
+        dpm.lockNow()
+    }
+
     fun enforceLockState(activity: Activity? = null) {
         if (isDeviceOwner()) {
             Log.i(TAG, "Enforcing enterprise lock as Device Owner")
