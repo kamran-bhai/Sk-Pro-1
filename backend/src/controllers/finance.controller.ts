@@ -63,8 +63,9 @@ export function syncOverdueFinancingState(): void {
     }
 
     const enrollment = db.enrollments.find(e => e.agreementId === agreement.id);
-    if (!enrollment || !['ACTIVE', 'DEVICE_OWNER', 'DEVICE_ADMIN'].includes(enrollment.enrollmentStatus) &&
-        !['DEVICE_OWNER', 'DEVICE_ADMIN'].includes(enrollment.managementMode)) {
+    if (!enrollment) continue;
+
+    if (!['ACTIVE', 'LOCKED'].includes(enrollment.enrollmentStatus)) {
       continue;
     }
 
