@@ -1,5 +1,10 @@
 package com.protectfinanceddevices.app.ui.customer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.protectfinanceddevices.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -49,6 +55,43 @@ fun CustomerEnrollmentScreen(
     var consentAgreed by remember { mutableStateOf(false) }
     var permissionsAgreed by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    fun startEnrollmentFlow() {
+        enrollmentError = null
+        step = EnrollmentStep.KEYSTORE_ATTESTATION
+        coroutineScope.launch {
+            progressMessage = "Generating hardware NIST P-256 keypair in Android Keystore..."
+            delay(700)
+            progressMessage = "Requesting cryptographic challenge nonce from server..."
+            delay(700)
+            progressMessage = "Signing challenge with hardware private key..."
+
+            onGenerateKeyAndEnroll(
+                enrollmentCodeInput,
+                { msg -> progressMessage = msg },
+                { success, err ->
+                    if (success) {
+                        step = EnrollmentStep.COMPLETED
+                    } else {
+                        enrollmentError = err
+                        step = EnrollmentStep.ENTER_CODE
+                    }
+                }
+            )
+        }
+    }
+
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startEnrollmentFlow()
+        } else {
+            enrollmentError = "SIM change alerts are unavailable because Phone permission was denied. Enrollment can continue without SIM telemetry."
+            startEnrollmentFlow()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -432,30 +475,16 @@ fun CustomerEnrollmentScreen(
                                 onClick = {
                                     if (!permissionsAgreed) {
                                         enrollmentError = "Please acknowledge permission consent."
+                                    } else if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                                        androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.READ_PHONE_STATE
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        phonePermissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
                                     } else {
-                                        enrollmentError = null
-                                        step = EnrollmentStep.KEYSTORE_ATTESTATION
-                                        // Trigger Keystore generation
-                                        coroutineScope.launch {
-                                            progressMessage = "Generating hardware NIST P-256 keypair in Android Keystore..."
-                                            delay(700)
-                                            progressMessage = "Requesting cryptographic challenge nonce from server..."
-                                            delay(700)
-                                            progressMessage = "Signing challenge with hardware private key..."
-                                            
-                                            onGenerateKeyAndEnroll(
-                                                enrollmentCodeInput,
-                                                { msg -> progressMessage = msg },
-                                                { success, err ->
-                                                    if (success) {
-                                                        step = EnrollmentStep.COMPLETED
-                                                    } else {
-                                                        enrollmentError = err
-                                                        step = EnrollmentStep.ENTER_CODE
-                                                    }
-                                                }
-                                            )
-                                        }
+                                        startEnrollmentFlow()
                                     }
                                 },
                                 enabled = permissionsAgreed,
