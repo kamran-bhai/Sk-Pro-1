@@ -79,7 +79,7 @@ export class EnrollmentController {
       tokenHash,
       expiresAt,
       isTokenUsed: false,
-      managementMode: 'DEVICE_OWNER',
+      managementMode: 'UNMANAGED',
       enrollmentStatus: 'AWAITING_CUSTOMER',
       isOnline: false,
       usbDebuggingActive: false
@@ -199,7 +199,7 @@ export class EnrollmentController {
         } : null,
         disclosures: {
           purpose: 'Installment financing compliance & payment reminder enforcement.',
-          managementType: 'Android Enterprise Device Owner Kiosk Mode (Emergency calling preserved).',
+          managementType: enr.managementMode === 'DEVICE_OWNER' ? 'Android Enterprise Device Owner (only when the device has actually been provisioned as Device Owner).' : 'Standard Android application mode. Device Owner controls are not active.',
           dataCollected: ['Battery percentage', 'Network connectivity state', 'SIM subscription carrier name', 'Cryptographic hardware attestation.'],
           privacyGuarantee: 'Personal photos, SMS text contents, private phone calls, web browsing history, and passwords are NEVER accessed or monitored.'
         }
@@ -239,6 +239,7 @@ export class EnrollmentController {
     enr.challengeNonce = nonce;
     enr.challengeExpiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes validity
     enr.enrollmentStatus = 'AWAITING_DEVICE';
+    db.save();
 
     res.json({
       success: true,
@@ -323,6 +324,7 @@ export class EnrollmentController {
     enr.appVersion = appVersion || '1.0.0';
     if (managementMode) enr.managementMode = managementMode;
     enr.enrollmentStatus = 'AWAITING_DEVICE';
+    db.save();
 
     AuditService.log({
       action: 'DEVICE_KEY_VERIFIED',
@@ -385,9 +387,13 @@ export class EnrollmentController {
     enr.tokenUsedAt = new Date().toISOString();
     enr.enrollmentStatus = 'ACTIVE';
     enr.enrolledAt = new Date().toISOString();
-    enr.isOnline = true;
+    // Enrollment proves device identity, not network reachability.
+    // The heartbeat endpoint is the only source of truth for online status.
+    enr.isOnline = false;
     if (fcmToken) enr.fcmToken = fcmToken;
-    if (managementMode) enr.managementMode = managementMode;
+    // Do not trust a client claim of Device Owner/managed state.
+    // Until verified provisioning support is implemented, enrollment remains UNMANAGED.
+    enr.managementMode = 'UNMANAGED';
 
     AuditService.log({
       action: 'DEVICE_ENROLLMENT_COMPLETED',
@@ -418,9 +424,14 @@ export class EnrollmentController {
       success: true,
       data: {
         enrollmentId: enr.id,
+        deviceId: enr.deviceId,
+        customerId: enr.customerId,
+        agreementId: enr.agreementId,
         enrollmentStatus: 'ACTIVE',
+        managementMode: enr.managementMode,
+        isOnline: false,
         enrolledAt: enr.enrolledAt,
-        message: 'Device successfully enrolled into financing protection system.'
+        message: 'Device successfully enrolled. Waiting for the first heartbeat to confirm online status.'
       }
     });
   }
