@@ -33,6 +33,8 @@ fun DeviceDetailsScreen(
     onLockDevice: (reason: String) -> Unit,
     onUnlockDevice: () -> Unit,
     onRequestStatus: () -> Unit,
+    statusRefreshing: Boolean = false,
+    statusError: String? = null,
     onRequestLocation: () -> Unit,
     onGenerateEnrollment: () -> Unit,
     onBack: () -> Unit
@@ -46,6 +48,10 @@ fun DeviceDetailsScreen(
 
     var showLockDialog by remember { mutableStateOf(false) }
     var lockReason by remember { mutableStateOf("Payment overdue for > 15 days as per agreement terms") }
+
+    LaunchedEffect(device.id) {
+        onRequestStatus()
+    }
 
     Scaffold(
         topBar = {
@@ -92,6 +98,14 @@ fun DeviceDetailsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            if (statusRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = PrimaryBlue
+                                )
+                            }
+
                             Column {
                                 Text("DEVICE STATUS", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
                                 Text(
@@ -110,6 +124,15 @@ fun DeviceDetailsScreen(
                         }
 
                         Divider(modifier = Modifier.padding(vertical = 12.dp), color = Slate800)
+
+                        statusError?.let { message ->
+                            Text(
+                                text = message,
+                                color = AmberWarning,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
