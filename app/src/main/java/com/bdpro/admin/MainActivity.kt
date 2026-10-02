@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
 }
 
 @Composable private fun AddDeviceScreen(token: String, onAdded: () -> Unit) {
+    val context = LocalContext.current
     var deviceId by remember { mutableStateOf("") }
     var imei by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
