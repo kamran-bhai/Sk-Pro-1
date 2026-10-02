@@ -1,4 +1,5 @@
 const devices = new Map();
+const commands = new Map();
 
 function normalizeDevice(input) {
   return {
@@ -13,4 +14,11 @@ function normalizeDevice(input) {
   };
 }
 
-module.exports = { devices, normalizeDevice };
+function queueCommand(deviceId, command, payload = {}) {
+  const id = "cmd-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+  const item = { id, deviceId, command, payload, status: "QUEUED", createdAt: new Date().toISOString() };
+  commands.set(id, item);
+  return item;
+}
+
+module.exports = { devices, commands, normalizeDevice, queueCommand };
