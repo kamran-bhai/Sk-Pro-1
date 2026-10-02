@@ -35,7 +35,6 @@ fun BDProApp() {
     var loggedIn by remember { mutableStateOf(session.isLoggedIn()) }
     var selected by remember { mutableStateOf("Dashboard") }
     var selectedDevice by remember { mutableStateOf<DeviceDto?>(null) }
-
     MaterialTheme {
         if (!loggedIn) LoginScreen { token -> session.saveToken(token); loggedIn = true }
         else Scaffold(topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }) { pad ->
@@ -55,8 +54,7 @@ fun BDProApp() {
 
 @Composable private fun DashboardScreen(onSelect: (String) -> Unit) {
     Column(Modifier.padding(16.dp)) {
-        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall)
-        Text("Admin-controlled Android device management")
+        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall); Text("Admin-controlled Android device management")
         Spacer(Modifier.height(16.dp))
         modules.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -70,26 +68,23 @@ fun BDProApp() {
 
 @Composable private fun AddDeviceScreen(token: String, onAdded: () -> Unit) {
     val context = LocalContext.current
-    var deviceId by remember { mutableStateOf("") }; var imei by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }; var customerName by remember { mutableStateOf("") }
-    var customerPhone by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
+    var deviceId by remember { mutableStateOf("") }; var imei by remember { mutableStateOf("") }; var model by remember { mutableStateOf("") }
+    var customerName by remember { mutableStateOf("") }; var customerPhone by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }; var controlKey by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Add Device", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp))
-        OutlinedTextField(deviceId, { deviceId = it }, label = { Text("Device ID") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp)); OutlinedTextField(imei, { imei = it }, label = { Text("IMEI") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp)); OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp)); OutlinedTextField(customerName, { customerName = it }, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp)); OutlinedTextField(customerPhone, { customerPhone = it }, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(deviceId, { deviceId = it }, label = { Text("Device ID") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
+        OutlinedTextField(imei, { imei = it }, label = { Text("IMEI") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
+        OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerName, { customerName = it }, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerPhone, { customerPhone = it }, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(12.dp))
         Button({
             busy = true; message = null; controlKey = null
             Thread {
                 val r = ApiClient.addDevice(token, deviceId, imei, model, customerName, customerPhone)
                 Handler(Looper.getMainLooper()).post {
                     busy = false
-                    r.onSuccess { controlKey = it.controlKey; message = "Device added successfully. Save this Control Key for the Device Agent." }
-                        .onFailure { message = it.message ?: "Add device failed" }
+                    r.onSuccess { controlKey = it.controlKey; message = "Device added successfully. Save this Control Key for the Device Agent." }.onFailure { message = it.message ?: "Add device failed" }
                 }
             }.start()
         }, enabled = !busy && deviceId.isNotBlank() && imei.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "ADDING..." else "ADD DEVICE") }
@@ -97,8 +92,7 @@ fun BDProApp() {
         controlKey?.let { key ->
             Spacer(Modifier.height(16.dp))
             ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                Text("Device Control Key", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(key)
-                Spacer(Modifier.height(10.dp))
+                Text("Device Control Key", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(key); Spacer(Modifier.height(10.dp))
                 Button(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("BD Pro Control Key", key)); message = "Control Key copied."
@@ -113,8 +107,8 @@ fun BDProApp() {
     var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }; var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message ?: "Unable to load devices" } }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Device List", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }; if (devices.isEmpty() && error == null) Text("No devices added yet.")
+        Text("Device List", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (devices.isEmpty() && error == null) Text("No devices added yet.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) { items(devices) { d ->
             ElevatedCard(onClick = { onSelect(d) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) {
                 Text(d.model.ifBlank { "Unknown model" }, style = MaterialTheme.typography.titleMedium); Text("Device ID: " + d.deviceId); Text("IMEI: " + d.imei)
@@ -127,85 +121,126 @@ fun BDProApp() {
 @Composable private fun DeviceDetailsScreen(device: DeviceDto, onCommand: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Device Details", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(16.dp))
-        Text("Device ID: " + device.deviceId); Text("IMEI: " + device.imei); Text("Model: " + device.model.ifBlank { "Unknown" })
-        Text("Customer: " + device.customerName.ifBlank { "—" }); Text("Phone: " + device.customerPhone.ifBlank { "—" }); Text("Status: " + device.status)
-        Text("Last seen: " + (device.lastSeenAt ?: "Not connected yet")); Spacer(Modifier.height(20.dp))
+        Text("Device ID: " + device.deviceId); Text("IMEI: " + device.imei); Text("Model: " + device.model.ifBlank { "Unknown" }); Text("Customer: " + device.customerName.ifBlank { "—" }); Text("Phone: " + device.customerPhone.ifBlank { "—" })
+        Text("Status: " + device.status); Text("Last seen: " + (device.lastSeenAt ?: "Not connected yet")); Spacer(Modifier.height(20.dp))
         Button(onClick = onCommand, modifier = Modifier.fillMaxWidth()) { Text("RUN COMMAND") }
     }
 }
 
 @Composable private fun AutoLockScreen(token: String, device: DeviceDto?) {
-    var minutes by remember { mutableStateOf("5") }; var message by remember { mutableStateOf<String?>(null) }; var active by remember { mutableStateOf<CommandDto?>(null) }
+    var minutes by remember { mutableStateOf("5") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var active by remember { mutableStateOf<CommandDto?>(null) }
     LaunchedEffect(active?.id) {
         val id = active?.id ?: return@LaunchedEffect
         while (true) {
-            delay(2000); val result = ApiClient.commandStatus(token, id); var done = false
-            result.onSuccess { updated -> active = updated; message = updated.result ?: updated.command + " • " + updated.status; done = updated.status == "SUCCESS" || updated.status == "FAILED" }
+            delay(2000)
+            val result = ApiClient.commandStatus(token, id)
+            var done = false
+            result.onSuccess { updated ->
+                active = updated
+                message = updated.result ?: (updated.command + " • " + updated.status)
+                done = updated.status == "SUCCESS" || updated.status == "FAILED"
+            }
             if (done) break
         }
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Auto Lock", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp))
-        Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
+        Text("Auto Lock", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
         OutlinedTextField(
-            value = minutes, onValueChange = { minutes = it.filter(Char::isDigit).take(4) },
-            label = { Text("Timeout (minutes)") }, supportingText = { Text("Allowed range: 1–1440 minutes") }, modifier = Modifier.fillMaxWidth()
+            value = minutes,
+            onValueChange = { minutes = it.filter(Char::isDigit).take(4) },
+            label = { Text("Timeout (minutes)") },
+            supportingText = { Text("Allowed range: 1–1440 minutes") },
+            modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
-        Button(enabled = device != null && minutes.toIntOrNull()?.let { it in 1..1440 } == true, onClick = {
-            val timeout = minutes.toInt(); message = "Sending Auto Lock • " + timeout + " minutes..."
-            Thread {
-                val r = ApiClient.sendCommand(token, device!!.id, "AUTOLOCK_ON", JSONObject().put("timeoutMinutes", timeout))
-                Handler(Looper.getMainLooper()).post { r.onSuccess { active = it; message = "AUTOLOCK_ON • QUEUED" }.onFailure { message = it.message ?: "Command failed" } }
-            }.start()
-        }, modifier = Modifier.fillMaxWidth()) { Text("ENABLE AUTO LOCK") }
+        Button(
+            enabled = device != null && minutes.toIntOrNull()?.let { it in 1..1440 } == true,
+            onClick = {
+                val timeout = minutes.toInt()
+                message = "Sending Auto Lock • " + timeout + " minutes..."
+                Thread {
+                    val r = ApiClient.sendCommand(token, device!!.id, "AUTOLOCK_ON", JSONObject().put("timeoutMinutes", timeout))
+                    Handler(Looper.getMainLooper()).post {
+                        r.onSuccess { active = it; message = "AUTOLOCK_ON • QUEUED" }.onFailure { message = it.message ?: "Command failed" }
+                    }
+                }.start()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("ENABLE AUTO LOCK") }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(enabled = device != null, onClick = {
-            message = "Disabling Auto Lock..."
-            Thread {
-                val r = ApiClient.sendCommand(token, device!!.id, "AUTOLOCK_OFF")
-                Handler(Looper.getMainLooper()).post { r.onSuccess { active = it; message = "AUTOLOCK_OFF • QUEUED" }.onFailure { message = it.message ?: "Command failed" } }
-            }.start()
-        }, modifier = Modifier.fillMaxWidth()) { Text("DISABLE AUTO LOCK") }
+        OutlinedButton(
+            enabled = device != null,
+            onClick = {
+                message = "Disabling Auto Lock..."
+                Thread {
+                    val r = ApiClient.sendCommand(token, device!!.id, "AUTOLOCK_OFF")
+                    Handler(Looper.getMainLooper()).post {
+                        r.onSuccess { active = it; message = "AUTOLOCK_OFF • QUEUED" }.onFailure { message = it.message ?: "Command failed" }
+                    }
+                }.start()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("DISABLE AUTO LOCK") }
         message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
     }
 }
 
 @Composable private fun RunCommandScreen(token: String, device: DeviceDto?) {
-    val context = LocalContext.current; var message by remember { mutableStateOf<String?>(null) }; var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
+    val context = LocalContext.current
+    var message by remember { mutableStateOf<String?>(null) }
+    var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
     val commands = listOf("LOCK", "UNLOCK", "LOCATION", "DIAGNOSTICS", "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF")
     LaunchedEffect(activeCommand?.id) {
         val id = activeCommand?.id ?: return@LaunchedEffect
         while (true) {
-            delay(2000); val result = ApiClient.commandStatus(token, id); var finished = false
-            result.onSuccess { updated -> activeCommand = updated; message = updated.command + " • " + updated.status + (updated.result?.let { " • " + it } ?: ""); finished = updated.status == "SUCCESS" || updated.status == "FAILED" }
+            delay(2000)
+            val result = ApiClient.commandStatus(token, id)
+            var finished = false
+            result.onSuccess { updated ->
+                activeCommand = updated
+                message = updated.command + " • " + updated.status + (updated.result?.let { " • " + it } ?: "")
+                finished = updated.status == "SUCCESS" || updated.status == "FAILED"
+            }
             if (finished) break
         }
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
-        if (device != null) commands.forEach { command ->
-            Button(onClick = {
-                message = "Sending $command..."
-                Thread {
-                    val result = ApiClient.sendCommand(token, device.id, command)
-                    Handler(Looper.getMainLooper()).post { result.onSuccess { activeCommand = it; message = command + " • QUEUED" }.onFailure { message = it.message ?: "Command failed" } }
-                }.start()
-            }, enabled = activeCommand?.status != "QUEUED" && activeCommand?.status != "SENT", modifier = Modifier.fillMaxWidth()) { Text(command.replace("_", " ")) }
-            Spacer(Modifier.height(8.dp))
-        })
+        if (device != null) {
+            commands.forEach { command ->
+                Button(
+                    onClick = {
+                        message = "Sending $command..."
+                        Thread {
+                            val result = ApiClient.sendCommand(token, device.id, command)
+                            Handler(Looper.getMainLooper()).post {
+                                result.onSuccess { activeCommand = it; message = command + " • QUEUED" }.onFailure { message = it.message ?: "Command failed" }
+                            }
+                        }.start()
+                    },
+                    enabled = activeCommand?.status != "QUEUED" && activeCommand?.status != "SENT",
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(command.replace("_", " ")) }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         val diagnostic = activeCommand
         if (diagnostic?.command == "DIAGNOSTICS" && diagnostic.status == "SUCCESS" && diagnostic.batteryPercent != null) {
-            Spacer(Modifier.height(16.dp)); ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                Text("Device Diagnostics", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text("Battery: " + diagnostic.batteryPercent + "%")
-                Text("Charging: " + if (diagnostic.charging == true) "Yes" else "No"); Text("Device Admin: " + if (diagnostic.deviceAdmin == true) "Enabled" else "Disabled")
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
+                Text("Device Diagnostics", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
+                Text("Battery: " + diagnostic.batteryPercent + "%"); Text("Charging: " + if (diagnostic.charging == true) "Yes" else "No"); Text("Device Admin: " + if (diagnostic.deviceAdmin == true) "Enabled" else "Disabled")
                 diagnostic.uptimeSeconds?.let { Text("Uptime: " + (it / 3600) + "h " + ((it % 3600) / 60) + "m") }
             }}
         }
         val loc = activeCommand
         if (loc?.command == "LOCATION" && loc.status == "SUCCESS" && loc.latitude != null && loc.longitude != null) {
-            Spacer(Modifier.height(16.dp)); ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
                 Text("Latest Device Location", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp))
                 Text("Latitude: " + loc.latitude); Text("Longitude: " + loc.longitude); loc.accuracyMeters?.let { Text("Accuracy: " + "%.1f m".format(it)) }; Spacer(Modifier.height(10.dp))
                 Button(onClick = {
@@ -218,7 +253,10 @@ fun BDProApp() {
 }
 
 @Composable private fun LoginScreen(onLogin: (String) -> Unit) {
-    var email by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }; var loading by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("BD Pro", style = MaterialTheme.typography.headlineLarge); Spacer(Modifier.height(8.dp)); Text("Admin Login"); Spacer(Modifier.height(16.dp))
         OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
