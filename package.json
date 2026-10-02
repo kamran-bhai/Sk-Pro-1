@@ -1,8 +1,9 @@
 {
-  "name": "bd-pro-monorepo",
+  "name": "bd-pro-render-wrapper",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npm --prefix backend ci && npm --prefix backend run build",
-    "start": "npm --prefix backend start"
+    "build": "cd backend && npm install && npm run build",
+    "start": "node backend/dist/server.js"
   }
 }
