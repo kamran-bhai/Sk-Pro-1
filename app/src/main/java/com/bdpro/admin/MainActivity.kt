@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -68,9 +69,49 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
 }
 
 @Composable private fun RunCommandScreen(token: String, device: DeviceDto?) {
-    var message by remember { mutableStateOf<String?>(null) }; val commands = listOf("LOCK", "UNLOCK", "LOCATION", "DIAGNOSTICS", "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF")
-    Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
-        if (device != null) commands.forEach { command -> Button(onClick = { Thread { val r = ApiClient.sendCommand(token, device.id, command); Handler(Looper.getMainLooper()).post { r.onSuccess { message = command + " queued (" + it.id + ")" }.onFailure { message = it.message ?: "Command failed" } } }.start() }, modifier = Modifier.fillMaxWidth()) { Text(command.replace("_", " ")) }; Spacer(Modifier.height(8.dp)) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
+    val commands = listOf("LOCK", "UNLOCK", "LOCATION", "DIAGNOSTICS", "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF")
+
+    LaunchedEffect(activeCommand?.id) {
+        val id = activeCommand?.id ?: return@LaunchedEffect
+        while (true) {
+            delay(2000)
+            ApiClient.commandStatus(token, id).onSuccess { updated ->
+                activeCommand = updated
+                message = updated.command + " • " + updated.status + (updated.result?.let { " • $it" } ?: "")
+                if (updated.status == "SUCCESS" || updated.status == "FAILED") return@onSuccess
+            }
+            if (activeCommand?.status == "SUCCESS" || activeCommand?.status == "FAILED") break
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Run Command", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("Target: " + (device?.deviceId ?: "Select a device from Device List"))
+        Spacer(Modifier.height(16.dp))
+        if (device != null) {
+            commands.forEach { command ->
+                Button(
+                    onClick = {
+                        message = "Sending $command..."
+                        Thread {
+                            val result = ApiClient.sendCommand(token, device.id, command)
+                            Handler(Looper.getMainLooper()).post {
+                                result.onSuccess {
+                                    activeCommand = it
+                                    message = "$command • QUEUED"
+                                }.onFailure { message = it.message ?: "Command failed" }
+                            }
+                        }.start()
+                    },
+                    enabled = activeCommand?.status != "QUEUED" && activeCommand?.status != "SENT",
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(command.replace("_", " ")) }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 }
