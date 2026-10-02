@@ -103,6 +103,43 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
             }
         }
 
+    suspend fun put(path: String, payload: JSONObject, accessToken: String? = null): ApiResponse<JSONObject> =
+        withContext(Dispatchers.IO) {
+            val urlString = "$sanitizedBaseUrl$path"
+            var conn: HttpURLConnection? = null
+            try {
+                val url = URL(urlString)
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("Accept", "application/json")
+                    accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
+                    connectTimeout = 30000
+                    readTimeout = 30000
+                    doOutput = true
+                }
+                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
+                    writer.write(payload.toString())
+                    writer.flush()
+                }
+                val responseCode = conn.responseCode
+                val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+                val body = BufferedReader(InputStreamReader(stream ?: conn.inputStream)).use { it.readText() }
+                val json = if (body.isNotEmpty()) JSONObject(body) else JSONObject()
+                if (responseCode in 200..299) {
+                    ApiResponse(isSuccess = true, statusCode = responseCode, data = json)
+                } else {
+                    val msg = json.optString("message", json.optString("error", "HTTP error $responseCode"))
+                    ApiResponse(isSuccess = false, statusCode = responseCode, errorMessage = msg)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "PUT request failed to " + urlString + ": " + e.message)
+                ApiResponse(isSuccess = false, statusCode = -1, errorMessage = e.message ?: "Network error")
+            } finally {
+                conn?.disconnect()
+            }
+        }
+
     companion object {
         private const val TAG = "ApiClient"
     }
