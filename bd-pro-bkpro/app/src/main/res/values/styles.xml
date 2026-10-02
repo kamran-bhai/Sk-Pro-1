@@ -1,0 +1,7 @@
+<resources>
+<style name="Theme.BDProBKPro" parent="android:style/Theme.Material.NoActionBar">
+<item name="android:fontFamily">sans</item>
+<item name="android:statusBarColor">#00030B</item>
+<item name="android:navigationBarColor">#F4F4F4</item>
+</style>
+</resources>
