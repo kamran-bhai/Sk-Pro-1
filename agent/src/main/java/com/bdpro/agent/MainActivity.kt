@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 class MainActivity : ComponentActivity() {
     private lateinit var prefs: AgentPrefs
     private val locationRequestCode = 2001
+    private val phoneStateRequestCode = 2002
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,19 +64,45 @@ class MainActivity : ComponentActivity() {
         })
 
         l.addView(Button(this).apply {
+            text = "ALLOW PHONE STATE (ANTI-THEFT)"
+            setOnClickListener { requestPhoneStatePermission() }
+        })
+
+        l.addView(Button(this).apply {
             text = "SAVE & START AGENT"
             setOnClickListener {
                 prefs.backendUrl = backend.text.toString()
                 prefs.deviceId = device.text.toString()
                 prefs.controlKey = key.text.toString()
-                if (!hasLocationPermission()) {
-                    Toast.makeText(this@MainActivity, "Allow location first", Toast.LENGTH_LONG).show()
-                    requestLocationPermission()
-                } else {
-                    ContextCompat.startForegroundService(
-                        this@MainActivity,
-                        Intent(this@MainActivity, AgentService::class.java)
-                    )
+
+                when {
+                    !hasLocationPermission() -> {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Allow location first",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        requestLocationPermission()
+                    }
+                    !hasPhoneStatePermission() -> {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Allow Phone State for Anti-Theft",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        requestPhoneStatePermission()
+                    }
+                    else -> {
+                        ContextCompat.startForegroundService(
+                            this@MainActivity,
+                            Intent(this@MainActivity, AgentService::class.java)
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "BD Pro Agent started",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         })
@@ -84,15 +111,40 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun hasLocationPermission(): Boolean =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+    private fun hasPhoneStatePermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
 
     private fun requestLocationPermission() {
         if (!hasLocationPermission()) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
                 locationRequestCode
+            )
+        }
+    }
+
+    private fun requestPhoneStatePermission() {
+        if (!hasPhoneStatePermission()) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_PHONE_STATE),
+                phoneStateRequestCode
             )
         }
     }
