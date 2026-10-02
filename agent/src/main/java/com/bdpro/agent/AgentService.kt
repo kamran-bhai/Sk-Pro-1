@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.telephony.SubscriptionManager
 import android.os.BatteryManager
 import android.os.IBinder
 import android.os.SystemClock
@@ -78,9 +79,26 @@ class AgentService : Service() {
                         result = "Auto Lock disabled"
                     }
                 }
-                "ANTI_THEFT_ON", "ANTI_THEFT_OFF" -> {
-                    p.antiTheftEnabled = name == "ANTI_THEFT_ON"
-                    result = name + " policy enabled"
+                "ANTI_THEFT_ON" -> {
+                    if (!hasPhoneStatePermission()) {
+                        status = "FAILED"
+                        result = "READ_PHONE_STATE permission is required"
+                    } else {
+                        val fingerprint = readSimFingerprint()
+                        if (fingerprint.isBlank()) {
+                            status = "FAILED"
+                            result = "No active SIM subscription detected"
+                        } else {
+                            p.simFingerprint = fingerprint
+                            p.antiTheftEnabled = true
+                            result = "ANTI_THEFT_ON policy enabled and SIM baseline saved"
+                        }
+                    }
+                }
+                "ANTI_THEFT_OFF" -> {
+                    p.antiTheftEnabled = false
+                    p.simFingerprint = ""
+                    result = "ANTI_THEFT_OFF policy disabled"
                 }
                 else -> { status = "FAILED"; result = "Unsupported command" }
             }
@@ -123,9 +141,22 @@ class AgentService : Service() {
     private fun readSimFingerprint(): String {
         if (!hasPhoneStatePermission()) return ""
         return try {
-            val tm = getSystemService(TELEPHONY_SERVICE) as android.telephony.TelephonyManager
-            listOf(tm.simOperator, tm.simCountryIso, tm.phoneType.toString()).joinToString("|")
-        } catch (_: SecurityException) { "" }
+            val sm = getSystemService(SubscriptionManager::class.java)
+            val subscriptions = sm.activeSubscriptionInfoList.orEmpty()
+                .sortedBy { it.subscriptionId }
+            subscriptions.joinToString(";") { info ->
+                listOf(
+                    info.subscriptionId.toString(),
+                    info.mccString.orEmpty(),
+                    info.mncString.orEmpty(),
+                    info.countryIso.orEmpty()
+                ).joinToString("|")
+            }
+        } catch (_: SecurityException) {
+            ""
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     private fun collectDiagnostics(dpm: DevicePolicyManager): String {
