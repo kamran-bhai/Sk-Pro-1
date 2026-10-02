@@ -3,21 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "tsx src/server.ts"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.3",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.5.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.9.2"
+    "build": "mkdir -p dist && cp src/server.js dist/server.js",
+    "start": "node dist/server.js"
   }
 }
