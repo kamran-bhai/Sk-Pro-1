@@ -21,6 +21,7 @@ import java.net.URL
 class AgentService : Service() {
     private var running = false
     private val autoLockTimeoutMs = 5 * 60 * 1000L
+    private var lastPolicyCheck = 0L
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundNotification()
         if (!running) { running = true; Thread { loop() }.start() }
@@ -35,7 +36,7 @@ class AgentService : Service() {
     private fun loop() {
         val p = AgentPrefs(this)
         while (running && p.deviceId.isNotBlank() && p.controlKey.isNotBlank()) {
-            try { enforceAutoLock(p); poll(p) } catch (_: Exception) {}
+            try { enforcePolicies(p); poll(p) } catch (_: Exception) {}
             Thread.sleep(10000)
         }
         stopSelf()
@@ -86,11 +87,45 @@ class AgentService : Service() {
         } catch (e: Exception) { status = "FAILED"; result = e.message ?: "Execution failed" }
         ack(p, cmd.optString("id"), status, result)
     }
+    private fun enforcePolicies(p: AgentPrefs) {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isAdminActive(component())) return
+
+        if (p.autoLockEnabled) {
+            try { dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs) } catch (_: Exception) {}
+        }
+
+        if (p.antiTheftEnabled && hasPhoneStatePermission()) {
+            val current = readSimFingerprint()
+            val saved = p.simFingerprint
+            if (saved.isNotBlank() && current.isNotBlank() && current != saved) {
+                try {
+                    dpm.lockNow()
+                    p.antiTheftEnabled = false
+                    p.simFingerprint = ""
+                } catch (_: Exception) {}
+            }
+        }
+        lastPolicyCheck = SystemClock.elapsedRealtime()
+    }
+
     private fun enforceAutoLock(p: AgentPrefs) {
         if (!p.autoLockEnabled) return
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         if (!dpm.isAdminActive(component())) return
         try { dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs) } catch (_: Exception) {}
+    }
+
+    private fun hasPhoneStatePermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun readSimFingerprint(): String {
+        if (!hasPhoneStatePermission()) return ""
+        return try {
+            val tm = getSystemService(TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            listOf(tm.simOperator, tm.simCountryIso, tm.phoneType.toString()).joinToString("|")
+        } catch (_: SecurityException) { "" }
     }
 
     private fun collectDiagnostics(dpm: DevicePolicyManager): String {
