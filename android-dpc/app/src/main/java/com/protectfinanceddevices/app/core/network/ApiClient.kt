@@ -40,8 +40,8 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
                     requestMethod = "GET"
                     setRequestProperty("Accept", "application/json")
                     accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
-                    connectTimeout = 15000
-                    readTimeout = 15000
+                    connectTimeout = 30000
+                    readTimeout = 30000
                 }
 
                 val responseCode = conn.responseCode
@@ -74,8 +74,8 @@ class ApiClient(private val baseUrl: String = ApiConfig.DEFAULT_BASE_URL) {
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     setRequestProperty("Accept", "application/json")
                     accessToken?.let { setRequestProperty("Authorization", "Bearer $it") }
-                    connectTimeout = 15000
-                    readTimeout = 15000
+                    connectTimeout = 30000
+                    readTimeout = 30000
                     doOutput = true
                 }
 
