@@ -16,4 +16,16 @@ class AgentPrefs(context: Context) {
     var backendUrl: String
         get() = p.getString("backend_url", "https://bd-pro-backend.onrender.com").orEmpty()
         set(value) { p.edit().putString("backend_url", value.trimEnd('/')).apply() }
+
+    var autoLockEnabled: Boolean
+        get() = p.getBoolean("auto_lock_enabled", false)
+        set(value) { p.edit().putBoolean("auto_lock_enabled", value).apply() }
+
+    var antiTheftEnabled: Boolean
+        get() = p.getBoolean("anti_theft_enabled", false)
+        set(value) { p.edit().putBoolean("anti_theft_enabled", value).apply() }
+
+    var simFingerprint: String
+        get() = p.getString("sim_fingerprint", "").orEmpty()
+        set(value) { p.edit().putString("sim_fingerprint", value).apply() }
 }
