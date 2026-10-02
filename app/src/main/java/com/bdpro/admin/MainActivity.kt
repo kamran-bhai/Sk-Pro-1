@@ -77,12 +77,14 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
         val id = activeCommand?.id ?: return@LaunchedEffect
         while (true) {
             delay(2000)
-            ApiClient.commandStatus(token, id).onSuccess { updated ->
+            val result = ApiClient.commandStatus(token, id)
+            var finished = false
+            result.onSuccess { updated ->
                 activeCommand = updated
                 message = updated.command + " • " + updated.status + (updated.result?.let { " • $it" } ?: "")
-                if (updated.status == "SUCCESS" || updated.status == "FAILED") return@onSuccess
+                finished = updated.status == "SUCCESS" || updated.status == "FAILED"
             }
-            if (activeCommand?.status == "SUCCESS" || activeCommand?.status == "FAILED") break
+            if (finished) break
         }
     }
 
