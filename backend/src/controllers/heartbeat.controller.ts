@@ -177,7 +177,6 @@ export class HeartbeatController {
 
       // Mark nonce as used
       db.usedNonces.add(nonce);
-    }
 
     const previousStatus = calculateDeviceOnlineStatus(enrollment);
     const nowIso = new Date().toISOString();
