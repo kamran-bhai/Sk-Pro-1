@@ -5,6 +5,7 @@ import { AuditService } from '../services/audit.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { SECURITY_CONFIG } from '../config/security.js';
 import { syncOverdueFinancingState } from './finance.controller.js';
+import { ProtectionPolicyController } from './protection-policy.controller.js';
 
 export class HeartbeatController {
   /**
@@ -257,6 +258,14 @@ export class HeartbeatController {
         ipAddress: req.ip
       });
 
+      if (enrollment.antiTheftEnabled !== false && enrollment.lockOnSimChange !== false) {
+        ProtectionPolicyController.queueLock(
+          enrollment.id,
+          'ANTI_THEFT_SIM_CHANGE',
+          { previousCarrier, currentCarrier, previousSubscriptionCount: previousCount, currentSubscriptionCount: currentCount }
+        );
+      }
+
       HeartbeatController.logActivity(
         enrollment.deviceId,
         enrollment.id,
@@ -294,6 +303,14 @@ export class HeartbeatController {
         createdAt: nowIso
       };
       db.alerts.unshift(alert);
+
+      if (enrollment.antiTheftEnabled !== false && enrollment.lockOnUsbDebugging !== false) {
+        ProtectionPolicyController.queueLock(
+          enrollment.id,
+          'ANTI_THEFT_USB_DEBUGGING',
+          { usbDebuggingActive: true }
+        );
+      }
 
       HeartbeatController.logActivity(
         enrollment.deviceId,
