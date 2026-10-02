@@ -273,6 +273,87 @@ fun DeviceDetailsScreen(
                 }
             }
 
+            // Protection parity panel: mirrors the device-management controls exposed by the reference app.
+            // Actions are intentionally wired to SK Pro's existing, audited callbacks rather than copied code.
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("DEVICE PROTECTION", fontSize = 12.sp, color = Slate100, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            "Protection actions available for this enrolled unit.",
+                            color = Slate400,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showLockDialog = true },
+                                modifier = Modifier.weight(1f),
+                                enabled = device.enrollmentStatus != "LOCKED"
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Restrict")
+                            }
+                            OutlinedButton(
+                                onClick = onUnlockDevice,
+                                modifier = Modifier.weight(1f),
+                                enabled = device.enrollmentStatus == "LOCKED"
+                            ) {
+                                Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Restore")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onRequestLocation,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Locate")
+                            }
+                            OutlinedButton(
+                                onClick = onRequestStatus,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Diagnostics")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Auto-lock and anti-theft policies are enforced by the device-management layer only when the device is enrolled with the required Android management privileges.",
+                            color = Slate400,
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp
+                        )
+                    }
+                }
+            }
+
             // Enrollment Ticket
             item {
                 Card(
