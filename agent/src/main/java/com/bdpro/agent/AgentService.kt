@@ -20,6 +20,7 @@ import java.net.URL
 
 class AgentService : Service() {
     private var running = false
+    private val autoLockTimeoutMs = 5 * 60 * 1000L
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundNotification()
         if (!running) { running = true; Thread { loop() }.start() }
@@ -34,7 +35,7 @@ class AgentService : Service() {
     private fun loop() {
         val p = AgentPrefs(this)
         while (running && p.deviceId.isNotBlank() && p.controlKey.isNotBlank()) {
-            try { poll(p) } catch (_: Exception) {}
+            try { enforceAutoLock(p); poll(p) } catch (_: Exception) {}
             Thread.sleep(10000)
         }
         stopSelf()
@@ -58,12 +59,40 @@ class AgentService : Service() {
                 "UNLOCK" -> result = "Unlock requires local user action"
                 "DIAGNOSTICS" -> result = collectDiagnostics(dpm)
                 "LOCATION" -> result = collectLocation()
-                "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF" -> result = name + " policy acknowledged"
+                "AUTOLOCK_ON" -> {
+                    if (!dpm.isAdminActive(component())) {
+                        status = "FAILED"; result = "Device Admin is not enabled"
+                    } else {
+                        p.autoLockEnabled = true
+                        dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs)
+                        result = "Auto Lock enabled: 5 minutes"
+                    }
+                }
+                "AUTOLOCK_OFF" -> {
+                    if (!dpm.isAdminActive(component())) {
+                        status = "FAILED"; result = "Device Admin is not enabled"
+                    } else {
+                        p.autoLockEnabled = false
+                        dpm.setMaximumTimeToLock(component(), 0L)
+                        result = "Auto Lock disabled"
+                    }
+                }
+                "ANTI_THEFT_ON", "ANTI_THEFT_OFF" -> {
+                    p.antiTheftEnabled = name == "ANTI_THEFT_ON"
+                    result = name + " policy enabled"
+                }
                 else -> { status = "FAILED"; result = "Unsupported command" }
             }
         } catch (e: Exception) { status = "FAILED"; result = e.message ?: "Execution failed" }
         ack(p, cmd.optString("id"), status, result)
     }
+    private fun enforceAutoLock(p: AgentPrefs) {
+        if (!p.autoLockEnabled) return
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isAdminActive(component())) return
+        try { dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs) } catch (_: Exception) {}
+    }
+
     private fun collectDiagnostics(dpm: DevicePolicyManager): String {
         val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
         val battery = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
