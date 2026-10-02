@@ -145,7 +145,35 @@ apiRouter.post(
   EnrollmentController.verifyDeviceAuthentication
 );
 
-// 4. One-key-one-device control-key management\napiRouter.post('/device-control-keys', authenticateToken, requireRole('ADMIN'), DeviceControlKeyController.issueKey);\napiRouter.get('/device-control-keys', authenticateToken, requireRole('ADMIN', 'SUPPORT'), DeviceControlKeyController.listKeys);\napiRouter.post('/device-control-keys/activate', generalLimiter, DeviceControlKeyController.activateKey);\napiRouter.post('/device-control-keys/:id/revoke', authenticateToken, requireRole('ADMIN'), DeviceControlKeyController.revokeKey);\n\n// 4. Device Telemetry & Heartbeat Gateway
+// 4. One-key-one-device control-key management
+apiRouter.post(
+  '/device-control-keys',
+  authenticateToken,
+  requireRole('ADMIN'),
+  DeviceControlKeyController.issueKey
+);
+
+apiRouter.get(
+  '/device-control-keys',
+  authenticateToken,
+  requireRole('ADMIN', 'SUPPORT'),
+  DeviceControlKeyController.listKeys
+);
+
+apiRouter.post(
+  '/device-control-keys/activate',
+  generalLimiter,
+  DeviceControlKeyController.activateKey
+);
+
+apiRouter.post(
+  '/device-control-keys/:id/revoke',
+  authenticateToken,
+  requireRole('ADMIN'),
+  DeviceControlKeyController.revokeKey
+);
+
+// 4. Device Telemetry & Heartbeat Gateway
 apiRouter.post(
   '/device/heartbeat',
   heartbeatLimiter,
