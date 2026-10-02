@@ -7,7 +7,18 @@ import java.net.URL
 data class LoginResult(val token: String, val email: String)
 data class DeviceDto(val id: String, val deviceId: String, val imei: String, val model: String, val customerName: String, val customerPhone: String, val status: String, val lastSeenAt: String? = null)
 data class DeviceEnrollment(val device: DeviceDto, val controlKey: String)
-data class CommandDto(val id: String, val deviceId: String, val command: String, val status: String, val createdAt: String, val result: String? = null)
+data class CommandDto(
+    val id: String,
+    val deviceId: String,
+    val command: String,
+    val status: String,
+    val createdAt: String,
+    val result: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Double? = null,
+    val locationTimestamp: Long? = null
+)
 
 object ApiClient {
     private fun request(method: String, path: String, token: String?, body: String? = null): String {
@@ -57,5 +68,20 @@ object ApiClient {
         parseCommand(JSONObject(request("GET", "/api/v1/commands/$commandId", token)).getJSONObject("command"))
     }
 
-    private fun parseCommand(j: JSONObject) = CommandDto(j.getString("id"), j.getString("deviceId"), j.getString("command"), j.getString("status"), j.getString("createdAt"), if (j.isNull("result")) null else j.optString("result"))
+    private fun parseCommand(j: JSONObject): CommandDto {
+        val raw = if (j.isNull("result")) null else j.optString("result")
+        val parsed = raw?.let { runCatching { JSONObject(it) }.getOrNull() }
+        return CommandDto(
+            id = j.getString("id"),
+            deviceId = j.getString("deviceId"),
+            command = j.getString("command"),
+            status = j.getString("status"),
+            createdAt = j.getString("createdAt"),
+            result = raw,
+            latitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("latitude")?.takeUnless { it.isNaN() },
+            longitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("longitude")?.takeUnless { it.isNaN() },
+            accuracyMeters = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("accuracyMeters")?.takeUnless { it.isNaN() },
+            locationTimestamp = parsed?.takeIf { it.optString("type") == "location" }?.optLong("timestamp")?.takeUnless { it == 0L }
+        )
+    }
 }
