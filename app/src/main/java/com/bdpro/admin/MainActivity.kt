@@ -44,7 +44,8 @@ fun BDProApp() {
                     "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
                     "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
                     "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
-                    "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice)
+                    "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
+                    "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
                     else -> DashboardScreen { selected = it }
                 }
             }
@@ -127,7 +128,10 @@ fun BDProApp() {
     }
 }
 
-@Composable private fun AutoLockScreen(token: String, device: DeviceDto?) {
+@Composable private fun AutoLockScreen(token: String, initialDevice: DeviceDto?, onSelectDevice: (DeviceDto?) -> Unit) {
+    var device by remember { mutableStateOf(initialDevice) }
+    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
+    LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it } }
     var minutes by remember { mutableStateOf("5") }
     var message by remember { mutableStateOf<String?>(null) }
     var active by remember { mutableStateOf<CommandDto?>(null) }
@@ -147,7 +151,19 @@ fun BDProApp() {
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Auto Lock", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("Select Device", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        LazyColumn(modifier = Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(devices) { d ->
+                OutlinedButton(
+                    onClick = { device = d; onSelectDevice(d) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("${d.model.ifBlank { "Device" }} • ${d.deviceId}${if (device?.id == d.id) " ✓" else ""}") }
+            }
+        }
+        Text("Target: " + (device?.deviceId ?: "No device selected"), Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = minutes,
             onValueChange = { minutes = it.filter(Char::isDigit).take(4) },
@@ -185,6 +201,85 @@ fun BDProApp() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("DISABLE AUTO LOCK") }
         message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
+    }
+}
+
+@Composable private fun AntiTheftScreen(token: String, initialDevice: DeviceDto?, onSelectDevice: (DeviceDto) -> Unit) {
+    var device by remember { mutableStateOf(initialDevice) }
+    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var active by remember { mutableStateOf<CommandDto?>(null) }
+
+    LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it } }
+
+    LaunchedEffect(active?.id) {
+        val id = active?.id ?: return@LaunchedEffect
+        while (true) {
+            delay(2000)
+            val result = ApiClient.commandStatus(token, id)
+            var done = false
+            result.onSuccess { updated ->
+                active = updated
+                message = updated.result ?: (updated.command + " • " + updated.status)
+                done = updated.status == "SUCCESS" || updated.status == "FAILED"
+            }
+            if (done) break
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Anti Theft", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("Select Device", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        LazyColumn(modifier = Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(devices) { d ->
+                OutlinedButton(
+                    onClick = { device = d; onSelectDevice(d) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("${d.model.ifBlank { "Device" }} • ${d.deviceId}${if (device?.id == d.id) " ✓" else ""}") }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("Target: " + (device?.deviceId ?: "No device selected"))
+        Spacer(Modifier.height(12.dp))
+        Button(
+            enabled = device != null && active?.status != "QUEUED" && active?.status != "SENT",
+            onClick = {
+                val target = device ?: return@Button
+                message = "Enabling Anti Theft..."
+                Thread {
+                    val r = ApiClient.sendCommand(token, target.id, "ANTI_THEFT_ON")
+                    Handler(Looper.getMainLooper()).post {
+                        r.onSuccess { active = it; message = "ANTI_THEFT_ON • QUEUED" }
+                            .onFailure { message = it.message ?: "Command failed" }
+                    }
+                }.start()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("ENABLE ANTI THEFT") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            enabled = device != null && active?.status != "QUEUED" && active?.status != "SENT",
+            onClick = {
+                val target = device ?: return@OutlinedButton
+                message = "Disabling Anti Theft..."
+                Thread {
+                    val r = ApiClient.sendCommand(token, target.id, "ANTI_THEFT_OFF")
+                    Handler(Looper.getMainLooper()).post {
+                        r.onSuccess { active = it; message = "ANTI_THEFT_OFF • QUEUED" }
+                            .onFailure { message = it.message ?: "Command failed" }
+                    }
+                }.start()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("DISABLE ANTI THEFT") }
+        message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Anti-Theft uses the device agent's SIM subscription baseline. If a change is detected, the agent can lock the device. Android/OEM limitations mean this is not a guaranteed SIM-identity check.",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
