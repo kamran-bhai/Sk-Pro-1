@@ -3,6 +3,8 @@ package com.bdpro.admin
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -132,6 +134,7 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
 }
 
 @Composable private fun RunCommandScreen(token: String, device: DeviceDto?) {
+    val context = LocalContext.current
     var message by remember { mutableStateOf<String?>(null) }
     var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
     val commands = listOf("LOCK", "UNLOCK", "LOCATION", "DIAGNOSTICS", "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF")
@@ -144,7 +147,7 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
             var finished = false
             result.onSuccess { updated ->
                 activeCommand = updated
-                message = updated.command + " • " + updated.status + (updated.result?.let { " • $it" } ?: "")
+                message = updated.command + " • " + updated.status + (updated.result?.let { " • " + it } ?: "")
                 finished = updated.status == "SUCCESS" || updated.status == "FAILED"
             }
             if (finished) break
@@ -160,13 +163,13 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
             commands.forEach { command ->
                 Button(
                     onClick = {
-                        message = "Sending $command..."
+                        message = "Sending " + command + "..."
                         Thread {
                             val result = ApiClient.sendCommand(token, device.id, command)
                             Handler(Looper.getMainLooper()).post {
                                 result.onSuccess {
                                     activeCommand = it
-                                    message = "$command • QUEUED"
+                                    message = command + " • QUEUED"
                                 }.onFailure { message = it.message ?: "Command failed" }
                             }
                         }.start()
@@ -178,6 +181,28 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
             }
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+
+        val location = activeCommand
+        if (location?.command == "LOCATION" && location.status == "SUCCESS" && location.latitude != null && location.longitude != null) {
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Latest Device Location", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Latitude: " + location.latitude)
+                    Text("Longitude: " + location.longitude)
+                    location.accuracyMeters?.let { Text("Accuracy: " + "%.1f m".format(it)) }
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            val uri = Uri.parse("geo:" + location.latitude + "," + location.longitude + "?q=" + location.latitude + "," + location.longitude + "(BD%20Pro%20Device)")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("OPEN IN MAP") }
+                }
+            }
+        }
     }
 }
 
