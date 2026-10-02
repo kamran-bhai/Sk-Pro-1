@@ -12,8 +12,16 @@ function normalizeDevice(input) {
     customerPhone: String(input.customerPhone || "").trim(),
     status: input.status || "ACTIVE",
     controlKey: input.controlKey || crypto.randomBytes(24).toString("hex"),
-    createdAt: input.createdAt || new Date().toISOString()
+    createdAt: input.createdAt || new Date().toISOString(),
+    lastSeenAt: input.lastSeenAt || null
   };
+}
+
+function markDeviceOnline(device) {
+  device.status = "ONLINE";
+  device.lastSeenAt = new Date().toISOString();
+  devices.set(device.id, device);
+  return device;
 }
 
 function queueCommand(deviceId, command, payload = {}) {
@@ -33,4 +41,4 @@ function updateCommand(id, status, result = null) {
   return item;
 }
 
-module.exports = { devices, commands, normalizeDevice, queueCommand, updateCommand };
+module.exports = { devices, commands, normalizeDevice, markDeviceOnline, queueCommand, updateCommand };
