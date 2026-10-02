@@ -1,6 +1,6 @@
 const http = require("http");
 const crypto = require("crypto");
-const { devices, normalizeDevice, queueCommand, commands, updateCommand } = require("./device-store");
+const { devices, normalizeDevice, markDeviceOnline, queueCommand, commands, updateCommand } = require("./device-store");
 
 const PORT = Number(process.env.PORT || 10000);
 const JWT_SECRET = process.env.JWT_SECRET || "bd-pro-change-this-secret";
@@ -26,6 +26,7 @@ http.createServer((req,res)=>{
  const poll=req.url.match(/^\/api\/v1\/agent\/devices\/([^/]+)\/commands$/);
  if(poll&&req.method==="GET"){
    const device=devices.get(poll[1]); if(!device||!deviceAuth(req,res,device))return;
+   markDeviceOnline(device);
    const pending=Array.from(commands.values()).filter(c=>c.deviceId===device.id&&c.status==="QUEUED").sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,10);
    pending.forEach(c=>{c.status="SENT";c.updatedAt=new Date().toISOString();commands.set(c.id,c)});
    return send(res,200,{commands:pending});
