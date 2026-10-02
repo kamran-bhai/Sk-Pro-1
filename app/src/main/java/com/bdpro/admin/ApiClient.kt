@@ -6,7 +6,8 @@ import java.net.URL
 
 data class LoginResult(val token: String, val email: String)
 data class DeviceDto(val id: String, val deviceId: String, val imei: String, val model: String, val customerName: String, val customerPhone: String, val status: String)
-data class CommandDto(val id: String, val deviceId: String, val command: String, val status: String, val createdAt: String)
+data class DeviceEnrollment(val device: DeviceDto, val controlKey: String)
+data class CommandDto(val id: String, val deviceId: String, val command: String, val status: String, val createdAt: String, val result: String? = null)
 
 object ApiClient {
     private fun request(method: String, path: String, token: String?, body: String? = null): String {
@@ -39,15 +40,22 @@ object ApiClient {
         }
     }
 
-    fun addDevice(token: String, deviceId: String, imei: String, model: String, customerName: String, customerPhone: String): Result<DeviceDto> = runCatching {
+    fun addDevice(token: String, deviceId: String, imei: String, model: String, customerName: String, customerPhone: String): Result<DeviceEnrollment> = runCatching {
         val body = JSONObject().put("deviceId", deviceId).put("imei", imei).put("model", model).put("customerName", customerName).put("customerPhone", customerPhone).toString()
-        val j = JSONObject(request("POST", "/api/v1/devices", token, body)).getJSONObject("device")
-        DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"))
+        val root = JSONObject(request("POST", "/api/v1/devices", token, body))
+        val j = root.getJSONObject("device")
+        val device = DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"))
+        DeviceEnrollment(device, root.getJSONObject("enrollment").getString("controlKey"))
     }
 
     fun sendCommand(token: String, deviceId: String, command: String): Result<CommandDto> = runCatching {
-        val body = JSONObject().put("command", command).toString()
-        val j = JSONObject(request("POST", "/api/v1/devices/$deviceId/commands", token, body)).getJSONObject("command")
-        CommandDto(j.getString("id"), j.getString("deviceId"), j.getString("command"), j.getString("status"), j.getString("createdAt"))
+        val j = JSONObject(request("POST", "/api/v1/devices/$deviceId/commands", token, JSONObject().put("command", command).toString())).getJSONObject("command")
+        parseCommand(j)
     }
+
+    fun commandStatus(token: String, commandId: String): Result<CommandDto> = runCatching {
+        parseCommand(JSONObject(request("GET", "/api/v1/commands/$commandId", token)).getJSONObject("command"))
+    }
+
+    private fun parseCommand(j: JSONObject) = CommandDto(j.getString("id"), j.getString("deviceId"), j.getString("command"), j.getString("status"), j.getString("createdAt"), if (j.isNull("result")) null else j.optString("result"))
 }
