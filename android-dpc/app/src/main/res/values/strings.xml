@@ -1,8 +1,0 @@
-<resources>
-    <string name="app_name">SK Pro</string>
-    <string name="device_admin_description">Enforces financing installment compliance, legitimate device lock policies, and hardware security attestation as per the customer agreement.</string>
-    <string name="lock_screen_title">DEVICE TEMPORARILY RESTRICTED</string>
-    <string name="lock_screen_desc">This device has been restricted in accordance with your financing agreement terms due to an outstanding installment payment. Please contact customer support to resolve your balance and restore full functionality immediately.</string>
-    <string name="emergency_call">Emergency Call</string>
-    <string name="support_hotline">Support Hotline</string>
-</resources>

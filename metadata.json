@@ -1,6 +1,0 @@
-{
-  "name": "Protect Your Financed Devices",
-  "description": "Enterprise device management, installment financing, and compliance platform for financed smartphone sales.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
