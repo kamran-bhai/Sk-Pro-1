@@ -36,6 +36,11 @@ fun DeviceDetailsScreen(
     statusRefreshing: Boolean = false,
     statusError: String? = null,
     onRequestLocation: () -> Unit,
+    autoLockEnabled: Boolean = true,
+    antiTheftEnabled: Boolean = true,
+    lockOnSimChange: Boolean = true,
+    lockOnUsbDebugging: Boolean = true,
+    onProtectionPolicyChange: (autoLock: Boolean, antiTheft: Boolean, simChange: Boolean, usbDebugging: Boolean) -> Unit = { _, _, _, _ -> },
     onGenerateEnrollment: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -344,8 +349,25 @@ fun DeviceDetailsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = Slate800)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("AUTOMATED PROTECTION POLICIES", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Changes are saved to the server and evaluated on the device heartbeat.", color = Slate400, fontSize = 10.sp)
+                        SwitchRow("Auto-Lock on financing overdue", autoLockEnabled) {
+                            onProtectionPolicyChange(it, antiTheftEnabled, lockOnSimChange, lockOnUsbDebugging)
+                        }
+                        SwitchRow("Anti-Theft protection", antiTheftEnabled) {
+                            onProtectionPolicyChange(autoLockEnabled, it, lockOnSimChange, lockOnUsbDebugging)
+                        }
+                        SwitchRow("Lock on SIM change", lockOnSimChange) {
+                            onProtectionPolicyChange(autoLockEnabled, antiTheftEnabled, it, lockOnUsbDebugging)
+                        }
+                        SwitchRow("Lock on USB debugging", lockOnUsbDebugging) {
+                            onProtectionPolicyChange(autoLockEnabled, antiTheftEnabled, lockOnSimChange, it)
+                        }
                         Text(
-                            "Auto-lock and anti-theft policies are enforced by the device-management layer only when the device is enrolled with the required Android management privileges.",
+                            "Actual lock enforcement requires Device Owner or Device Admin authority.",
                             color = Slate400,
                             fontSize = 10.sp,
                             lineHeight = 14.sp
@@ -527,6 +549,19 @@ fun DeviceDetailsScreen(
             titleContentColor = Slate100,
             textContentColor = Slate200
         )
+    }
+}
+
+@Composable
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Slate200, fontSize = 12.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
