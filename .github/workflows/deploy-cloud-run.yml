@@ -1,6 +1,8 @@
 name: Deploy Backend to Cloud Run
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -62,3 +64,20 @@ jobs:
 
           echo "$BODY"
           echo "$BODY" | grep -q '"API_ROUTE_NOT_FOUND"'
+
+      - name: Verify login endpoint returns JSON
+        run: |
+          SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$CLOUD_RUN_SERVICE" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          BODY="$(curl --silent --show-error --max-time 30 \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            --data '{"email":"deployment-probe@example.invalid","password":"invalid-probe-password"}' \
+            "$SERVICE_URL/api/v1/auth/login")"
+
+          echo "$BODY"
+          echo "$BODY" | grep -q '"INVALID_CREDENTIALS"'
