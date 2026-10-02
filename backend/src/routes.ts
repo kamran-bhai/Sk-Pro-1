@@ -198,7 +198,7 @@ apiRouter.post(
 apiRouter.get(
   '/devices/:id/protection-policy',
   authenticateToken,
-  requireRole('ADMIN', 'SUPPORT', 'CUSTOMER'),
+  requireRole('ADMIN', 'SUPPORT'),
   ProtectionPolicyController.getPolicy
 );
 
