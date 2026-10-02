@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "mkdir -p dist && cp src/server.js dist/server.js",
+    "build": "mkdir -p dist && cp src/*.js dist/",
     "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
   }
 }
