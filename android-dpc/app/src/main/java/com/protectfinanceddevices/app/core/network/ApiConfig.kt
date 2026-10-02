@@ -5,7 +5,7 @@ package com.protectfinanceddevices.app.core.network
  * Anchored to the live deployment authority.
  */
 object ApiConfig {
-    const val DEFAULT_BASE_URL = "https://ais-dev-tm5ls67gqw2nrygmvrama2-896573692943.asia-southeast1.run.app"
+    const val DEFAULT_BASE_URL = "https://sk-pro-backend-uqw2.onrender.com"
     const val API_PREFIX = "/api/v1"
 
     // Endpoints
