@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">BD Pro Device Agent</string>
+    <string name="device_admin_label">BD Pro Device Admin</string>
+    <string name="device_admin_description">BD Pro device management controls</string>
+</resources>
