@@ -6,64 +6,107 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-private val modules = listOf(
-    "Add Device", "Device List", "Run Command", "Auto Lock", "Anti Theft",
-    "Location", "Diagnostics", "Customers", "EMI / Installment", "eNACH",
-    "Remove Device", "Admin Profile"
-)
+private val modules = listOf("Add Device", "Device List", "Run Command", "Auto Lock", "Anti Theft", "Location", "Diagnostics", "Customers", "EMI / Installment", "eNACH", "Remove Device", "Admin Profile")
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { BDProApp() }
-    }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { BDProApp() } }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BDProApp() {
+@Composable fun BDProApp() {
     val context = LocalContext.current
     val session = remember { SessionManager(context) }
     var loggedIn by remember { mutableStateOf(session.isLoggedIn()) }
     var selected by remember { mutableStateOf("Dashboard") }
-
     MaterialTheme {
-        if (!loggedIn) {
-            LoginScreen { token ->
-                session.saveToken(token)
-                loggedIn = true
+        if (!loggedIn) LoginScreen { token -> session.saveToken(token); loggedIn = true }
+        else Scaffold(topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }) { pad ->
+            when (selected) {
+                "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Device List" }
+                "Device List" -> DeviceListScreen(session.token() ?: "")
+                else -> DashboardScreen { selected = it }
             }
-        } else {
-            Scaffold(
-                topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }
-            ) { pad ->
-                Column(Modifier.padding(pad).padding(16.dp)) {
-                    Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Admin-controlled Android device management")
-                    Spacer(Modifier.height(16.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(modules) { name ->
-                            ElevatedButton(
-                                onClick = { selected = name },
-                                modifier = Modifier.height(86.dp)
-                            ) {
-                                Text(name)
-                            }
-                        }
+        }
+    }
+}
+
+@Composable private fun DashboardScreen(onSelect: (String) -> Unit) {
+    Column(Modifier.padding(16.dp)) {
+        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall)
+        Text("Admin-controlled Android device management")
+        Spacer(Modifier.height(16.dp))
+        modules.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { name -> ElevatedButton(onClick = { onSelect(name) }, modifier = Modifier.weight(1f).height(72.dp)) { Text(name) } }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable private fun AddDeviceScreen(token: String, onAdded: () -> Unit) {
+    var deviceId by remember { mutableStateOf("") }
+    var imei by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var customerName by remember { mutableStateOf("") }
+    var customerPhone by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Add Device", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(deviceId, { deviceId = it }, label = { Text("Device ID") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(imei, { imei = it }, label = { Text("IMEI") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerName, { customerName = it }, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerPhone, { customerPhone = it }, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = {
+            busy = true; message = null
+            Thread {
+                val result = ApiClient.addDevice(token, deviceId, imei, model, customerName, customerPhone)
+                Handler(Looper.getMainLooper()).post {
+                    busy = false
+                    result.onSuccess { message = "Device added successfully"; onAdded() }.onFailure { message = it.message ?: "Add device failed" }
+                }
+            }.start()
+        }, enabled = !busy && deviceId.isNotBlank() && imei.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "ADDING..." else "ADD DEVICE") }
+        message?.let { Text(it, Modifier.padding(top = 10.dp)) }
+    }
+}
+
+@Composable private fun DeviceListScreen(token: String) {
+    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message ?: "Unable to load devices" } }
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Device List", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (devices.isEmpty() && error == null) Text("No devices added yet.")
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(devices) { device ->
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(device.model.ifBlank { "Unknown model" }, style = MaterialTheme.typography.titleMedium)
+                        Text("Device ID: " + device.deviceId)
+                        Text("IMEI: " + device.imei)
+                        Text("Customer: " + device.customerName.ifBlank { "—" })
+                        Text("Phone: " + device.customerPhone.ifBlank { "—" })
+                        Text("Status: " + device.status)
                     }
                 }
             }
@@ -71,60 +114,26 @@ fun BDProApp() {
     }
 }
 
-@Composable
-private fun LoginScreen(onLogin: (String) -> Unit) {
+@Composable private fun LoginScreen(onLogin: (String) -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("BD Pro", style = MaterialTheme.typography.headlineLarge)
         Text("Admin Control Panel")
         Spacer(Modifier.height(24.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Admin email") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        OutlinedTextField(email, { email = it }, label = { Text("Admin email") }, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(20.dp))
-
-        Button(
-            onClick = {
-                loading = true
-                error = null
-                Thread {
-                    val result = ApiClient.login(email, password)
-                    Handler(Looper.getMainLooper()).post {
-                        loading = false
-                        result
-                            .onSuccess { onLogin(it.token) }
-                            .onFailure { error = it.message ?: "Login failed" }
-                    }
-                }.start()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !loading && email.isNotBlank() && password.isNotBlank()
-        ) {
-            Text(if (loading) "LOGGING IN..." else "LOGIN")
-        }
-
-        error?.let {
-            Spacer(Modifier.height(12.dp))
-            Text(it, color = MaterialTheme.colorScheme.error)
-        }
+        Button(onClick = {
+            loading = true; error = null
+            Thread {
+                val result = ApiClient.login(email, password)
+                Handler(Looper.getMainLooper()).post { loading = false; result.onSuccess { onLogin(it.token) }.onFailure { error = it.message ?: "Login failed" } }
+            }.start()
+        }, modifier = Modifier.fillMaxWidth(), enabled = !loading && email.isNotBlank() && password.isNotBlank()) { Text(if (loading) "LOGGING IN..." else "LOGIN") }
+        error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
