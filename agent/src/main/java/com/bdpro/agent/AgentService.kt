@@ -21,8 +21,7 @@ import java.net.URL
 
 class AgentService : Service() {
     private var running = false
-    private val autoLockTimeoutMs = 5 * 60 * 1000L
-    private var lastPolicyCheck = 0L
+    private val defaultAutoLockTimeoutMs = 5 * 60 * 1000L
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundNotification()
         if (!running) { running = true; Thread { loop() }.start() }
@@ -65,9 +64,13 @@ class AgentService : Service() {
                     if (!dpm.isAdminActive(component())) {
                         status = "FAILED"; result = "Device Admin is not enabled"
                     } else {
+                        val requested = cmd.optJSONObject("payload")?.optInt("timeoutMinutes", p.autoLockTimeoutMinutes)
+                            ?: p.autoLockTimeoutMinutes
+                        val minutes = requested.coerceIn(1, 1440)
+                        p.autoLockTimeoutMinutes = minutes
                         p.autoLockEnabled = true
-                        dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs)
-                        result = "Auto Lock enabled: 5 minutes"
+                        dpm.setMaximumTimeToLock(component(), minutes * 60_000L)
+                        result = "Auto Lock enabled: $minutes minute(s)"
                     }
                 }
                 "AUTOLOCK_OFF" -> {
@@ -108,11 +111,9 @@ class AgentService : Service() {
     private fun enforcePolicies(p: AgentPrefs) {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         if (!dpm.isAdminActive(component())) return
-
         if (p.autoLockEnabled) {
-            try { dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs) } catch (_: Exception) {}
+            try { dpm.setMaximumTimeToLock(component(), p.autoLockTimeoutMinutes * 60_000L) } catch (_: Exception) {}
         }
-
         if (p.antiTheftEnabled && hasPhoneStatePermission()) {
             val current = readSimFingerprint()
             val saved = p.simFingerprint
@@ -124,41 +125,20 @@ class AgentService : Service() {
                 } catch (_: Exception) {}
             }
         }
-        lastPolicyCheck = SystemClock.elapsedRealtime()
     }
-
-    private fun enforceAutoLock(p: AgentPrefs) {
-        if (!p.autoLockEnabled) return
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        if (!dpm.isAdminActive(component())) return
-        try { dpm.setMaximumTimeToLock(component(), autoLockTimeoutMs) } catch (_: Exception) {}
-    }
-
     private fun hasPhoneStatePermission(): Boolean =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) ==
-            PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
 
     private fun readSimFingerprint(): String {
         if (!hasPhoneStatePermission()) return ""
         return try {
             val sm = getSystemService(SubscriptionManager::class.java)
-            val subscriptions = sm.activeSubscriptionInfoList.orEmpty()
-                .sortedBy { it.subscriptionId }
+            val subscriptions = sm.activeSubscriptionInfoList.orEmpty().sortedBy { it.subscriptionId }
             subscriptions.joinToString(";") { info ->
-                listOf(
-                    info.subscriptionId.toString(),
-                    info.mccString.orEmpty(),
-                    info.mncString.orEmpty(),
-                    info.countryIso.orEmpty()
-                ).joinToString("|")
+                listOf(info.subscriptionId.toString(), info.mccString.orEmpty(), info.mncString.orEmpty(), info.countryIso.orEmpty()).joinToString("|")
             }
-        } catch (_: SecurityException) {
-            ""
-        } catch (_: Exception) {
-            ""
-        }
+        } catch (_: SecurityException) { "" } catch (_: Exception) { "" }
     }
-
     private fun collectDiagnostics(dpm: DevicePolicyManager): String {
         val bm = getSystemService(BATTERY_SERVICE) as BatteryManager
         val battery = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
