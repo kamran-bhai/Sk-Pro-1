@@ -8,20 +8,10 @@ data class LoginResult(val token: String, val email: String)
 data class DeviceDto(val id: String, val deviceId: String, val imei: String, val model: String, val customerName: String, val customerPhone: String, val status: String, val lastSeenAt: String? = null)
 data class DeviceEnrollment(val device: DeviceDto, val controlKey: String)
 data class CommandDto(
-    val id: String,
-    val deviceId: String,
-    val command: String,
-    val status: String,
-    val createdAt: String,
-    val result: String? = null,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val accuracyMeters: Double? = null,
-    val locationTimestamp: Long? = null,
-    val batteryPercent: Int? = null,
-    val charging: Boolean? = null,
-    val deviceAdmin: Boolean? = null,
-    val uptimeSeconds: Long? = null
+    val id: String, val deviceId: String, val command: String, val status: String, val createdAt: String,
+    val result: String? = null, val latitude: Double? = null, val longitude: Double? = null,
+    val accuracyMeters: Double? = null, val locationTimestamp: Long? = null, val batteryPercent: Int? = null,
+    val charging: Boolean? = null, val deviceAdmin: Boolean? = null, val uptimeSeconds: Long? = null
 )
 
 object ApiClient {
@@ -41,20 +31,14 @@ object ApiClient {
         }
         return response
     }
-
     fun login(email: String, password: String): Result<LoginResult> = runCatching {
         val j = JSONObject(request("POST", ApiConfig.LOGIN_PATH, null, JSONObject().put("email", email.trim()).put("password", password).toString()))
         LoginResult(j.getString("token"), j.optString("email", email.trim()))
     }
-
     fun listDevices(token: String): Result<List<DeviceDto>> = runCatching {
         val a = JSONObject(request("GET", "/api/v1/devices", token)).getJSONArray("devices")
-        (0 until a.length()).map {
-            val j = a.getJSONObject(it)
-            DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"), if (j.isNull("lastSeenAt")) null else j.optString("lastSeenAt"))
-        }
+        (0 until a.length()).map { val j = a.getJSONObject(it); DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"), if (j.isNull("lastSeenAt")) null else j.optString("lastSeenAt")) }
     }
-
     fun addDevice(token: String, deviceId: String, imei: String, model: String, customerName: String, customerPhone: String): Result<DeviceEnrollment> = runCatching {
         val body = JSONObject().put("deviceId", deviceId).put("imei", imei).put("model", model).put("customerName", customerName).put("customerPhone", customerPhone).toString()
         val root = JSONObject(request("POST", "/api/v1/devices", token, body))
@@ -62,34 +46,27 @@ object ApiClient {
         val device = DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"))
         DeviceEnrollment(device, root.getJSONObject("enrollment").getString("controlKey"))
     }
-
-    fun sendCommand(token: String, deviceId: String, command: String): Result<CommandDto> = runCatching {
-        val j = JSONObject(request("POST", "/api/v1/devices/$deviceId/commands", token, JSONObject().put("command", command).toString())).getJSONObject("command")
+    fun sendCommand(token: String, deviceId: String, command: String, payload: JSONObject? = null): Result<CommandDto> = runCatching {
+        val body = JSONObject().put("command", command).apply { if (payload != null) put("payload", payload) }.toString()
+        val j = JSONObject(request("POST", "/api/v1/devices/$deviceId/commands", token, body)).getJSONObject("command")
         parseCommand(j)
     }
-
     fun commandStatus(token: String, commandId: String): Result<CommandDto> = runCatching {
         parseCommand(JSONObject(request("GET", "/api/v1/commands/$commandId", token)).getJSONObject("command"))
     }
-
     private fun parseCommand(j: JSONObject): CommandDto {
         val raw = if (j.isNull("result")) null else j.optString("result")
         val parsed = raw?.let { runCatching { JSONObject(it) }.getOrNull() }
         return CommandDto(
-            id = j.getString("id"),
-            deviceId = j.getString("deviceId"),
-            command = j.getString("command"),
-            status = j.getString("status"),
-            createdAt = j.getString("createdAt"),
-            result = raw,
-            latitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("latitude")?.takeUnless { it.isNaN() },
-            longitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("longitude")?.takeUnless { it.isNaN() },
-            accuracyMeters = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("accuracyMeters")?.takeUnless { it.isNaN() },
-            locationTimestamp = parsed?.takeIf { it.optString("type") == "location" }?.optLong("timestamp")?.takeUnless { it == 0L },
-            batteryPercent = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optInt("batteryPercent")?.takeUnless { it == 0 },
-            charging = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("charging"),
-            deviceAdmin = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("deviceAdmin"),
-            uptimeSeconds = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optLong("uptimeSeconds")?.takeUnless { it == 0L }
+            j.getString("id"), j.getString("deviceId"), j.getString("command"), j.getString("status"), j.getString("createdAt"), raw,
+            parsed?.takeIf { it.optString("type") == "location" }?.optDouble("latitude")?.takeUnless { it.isNaN() },
+            parsed?.takeIf { it.optString("type") == "location" }?.optDouble("longitude")?.takeUnless { it.isNaN() },
+            parsed?.takeIf { it.optString("type") == "location" }?.optDouble("accuracyMeters")?.takeUnless { it.isNaN() },
+            parsed?.takeIf { it.optString("type") == "location" }?.optLong("timestamp")?.takeUnless { it == 0L },
+            parsed?.takeIf { it.optString("type") == "diagnostics" }?.optInt("batteryPercent")?.takeUnless { it == 0 },
+            parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("charging"),
+            parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("deviceAdmin"),
+            parsed?.takeIf { it.optString("type") == "diagnostics" }?.optLong("uptimeSeconds")?.takeUnless { it == 0L }
         )
     }
 }
