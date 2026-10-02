@@ -8,6 +8,7 @@ import { HeartbeatController } from './controllers/heartbeat.controller.js';
 import { FinanceController } from './controllers/finance.controller.js';
 import { AuditController } from './controllers/audit.controller.js';
 import { DeviceControlKeyController } from './controllers/device-control-key.controller.js';
+import { ProtectionPolicyController } from './controllers/protection-policy.controller.js';
 import { authenticateToken, requireRole } from './middleware/auth.js';
 import { createRateLimiter } from './middleware/rateLimiter.js';
 import { validateRequiredFields } from './middleware/validator.js';
@@ -191,6 +192,21 @@ apiRouter.post(
   generalLimiter,
   validateRequiredFields(['commandId', 'executionStatus']),
   CommandController.acknowledgeCommand
+);
+
+// Device protection policies
+apiRouter.get(
+  '/devices/:id/protection-policy',
+  authenticateToken,
+  requireRole('ADMIN', 'SUPPORT', 'CUSTOMER'),
+  ProtectionPolicyController.getPolicy
+);
+
+apiRouter.put(
+  '/devices/:id/protection-policy',
+  authenticateToken,
+  requireRole('ADMIN'),
+  ProtectionPolicyController.updatePolicy
 );
 
 // 5. Device Management & Status Routes (Protected: ADMIN, SUPPORT, CUSTOMER with IDOR)
