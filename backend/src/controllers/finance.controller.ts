@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db, AgreementRecord, PaymentRecord, generateInstallmentSchedule, EnrollmentRecord } from '../services/store.js';
 import { AuditService } from '../services/audit.service.js';
 import { CryptoService } from '../services/crypto.service.js';
+import { ProtectionPolicyController } from './protection-policy.controller.js';
 
 export function syncOverdueFinancingState(): void {
   const now = Date.now();
@@ -74,48 +75,19 @@ export function syncOverdueFinancingState(): void {
       continue;
     }
 
+    if (enrollment.autoLockEnabled === false) continue;
     if (enrollment.enrollmentStatus === 'LOCKED') continue;
 
-    const alreadyPending = db.commands.some(
-      c => c.enrollmentId === enrollment.id &&
-           c.commandType === 'LOCK_DEVICE' &&
-           ['PENDING', 'SENT'].includes(c.status)
-    );
-    if (alreadyPending) continue;
-
-    const commandId = `cmd-${crypto.randomUUID()}`;
-    const nonce = CryptoService.generateNonce();
-    const sequence = CryptoService.getNextSequence().toString();
-    const expiresAtMs = now + 24 * 60 * 60 * 1000;
-
-    const serverSignature = CryptoService.signCommand({
-      commandId,
-      enrollmentId: enrollment.id,
-      commandType: 'LOCK_DEVICE',
-      nonce,
-      sequence,
-      expiresAt: expiresAtMs
-    });
-
-    db.commands.unshift({
-      id: commandId,
-      enrollmentId: enrollment.id,
-      commandType: 'LOCK_DEVICE',
-      payload: {
-        reason: 'FINANCING_OVERDUE',
+    const commandId = ProtectionPolicyController.queueLock(
+      enrollment.id,
+      'FINANCING_OVERDUE',
+      {
         agreementId: agreement.id,
         agreementCode: agreement.agreementCode,
         installmentNumber: installments.find(i => i.status === 'OVERDUE')?.installmentNumber
-      },
-      nonce,
-      monotonicSequence: sequence,
-      serverSignature,
-      status: 'PENDING',
-      issuedBy: 'system',
-      expiresAt: new Date(expiresAtMs).toISOString(),
-      createdAt: new Date().toISOString()
-    });
-
+      }
+    );
+    if (!commandId) continue;
     enrollment.lastSecurityEvent = 'FINANCING_OVERDUE_LOCK_PENDING';
 
     AuditService.log({
