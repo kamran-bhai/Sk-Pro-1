@@ -17,7 +17,11 @@ data class CommandDto(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val accuracyMeters: Double? = null,
-    val locationTimestamp: Long? = null
+    val locationTimestamp: Long? = null,
+    val batteryPercent: Int? = null,
+    val charging: Boolean? = null,
+    val deviceAdmin: Boolean? = null,
+    val uptimeSeconds: Long? = null
 )
 
 object ApiClient {
@@ -81,7 +85,11 @@ object ApiClient {
             latitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("latitude")?.takeUnless { it.isNaN() },
             longitude = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("longitude")?.takeUnless { it.isNaN() },
             accuracyMeters = parsed?.takeIf { it.optString("type") == "location" }?.optDouble("accuracyMeters")?.takeUnless { it.isNaN() },
-            locationTimestamp = parsed?.takeIf { it.optString("type") == "location" }?.optLong("timestamp")?.takeUnless { it == 0L }
+            locationTimestamp = parsed?.takeIf { it.optString("type") == "location" }?.optLong("timestamp")?.takeUnless { it == 0L },
+            batteryPercent = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optInt("batteryPercent")?.takeUnless { it == 0 },
+            charging = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("charging"),
+            deviceAdmin = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optBoolean("deviceAdmin"),
+            uptimeSeconds = parsed?.takeIf { it.optString("type") == "diagnostics" }?.optLong("uptimeSeconds")?.takeUnless { it == 0L }
         )
     }
 }
