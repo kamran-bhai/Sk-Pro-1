@@ -1,9 +1,0 @@
-node_modules
-dist
-.git
-.github
-android-dpc/.gradle
-android-dpc/app/build
-*.log
-.env
-.env.*
