@@ -1,5 +1,8 @@
 package com.bdpro.admin
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -44,15 +47,74 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
 }
 
 @Composable private fun AddDeviceScreen(token: String, onAdded: () -> Unit) {
-    var deviceId by remember { mutableStateOf("") }; var imei by remember { mutableStateOf("") }; var model by remember { mutableStateOf("") }; var customerName by remember { mutableStateOf("") }; var customerPhone by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }; var message by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Add Device", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp))
-        OutlinedTextField(deviceId, { deviceId = it }, label = { Text("Device ID") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
-        OutlinedTextField(imei, { imei = it }, label = { Text("IMEI") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
-        OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
-        OutlinedTextField(customerName, { customerName = it }, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp))
-        OutlinedTextField(customerPhone, { customerPhone = it }, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(12.dp))
-        Button({ busy = true; message = null; Thread { val r = ApiClient.addDevice(token, deviceId, imei, model, customerName, customerPhone); Handler(Looper.getMainLooper()).post { busy = false; r.onSuccess { message = "Device added successfully"; onAdded() }.onFailure { message = it.message ?: "Add device failed" } } }.start() }, enabled = !busy && deviceId.isNotBlank() && imei.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "ADDING..." else "ADD DEVICE") }
+    var deviceId by remember { mutableStateOf("") }
+    var imei by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var customerName by remember { mutableStateOf("") }
+    var customerPhone by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var controlKey by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Add Device", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(deviceId, { deviceId = it }, label = { Text("Device ID") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(imei, { imei = it }, label = { Text("IMEI") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(model, { model = it }, label = { Text("Model") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerName, { customerName = it }, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerPhone, { customerPhone = it }, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+
+        Button(
+            {
+                busy = true
+                message = null
+                controlKey = null
+                Thread {
+                    val r = ApiClient.addDevice(token, deviceId, imei, model, customerName, customerPhone)
+                    Handler(Looper.getMainLooper()).post {
+                        busy = false
+                        r.onSuccess {
+                            controlKey = it.controlKey
+                            message = "Device added successfully. Save this Control Key for the Device Agent."
+                        }.onFailure { message = it.message ?: "Add device failed" }
+                    }
+                }.start()
+            },
+            enabled = !busy && deviceId.isNotBlank() && imei.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "ADDING..." else "ADD DEVICE") }
+
         message?.let { Text(it, Modifier.padding(top = 10.dp)) }
+
+        controlKey?.let { key ->
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Device Control Key", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(key, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("BD Pro Control Key", key))
+                            message = "Control Key copied."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("COPY CONTROL KEY") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onAdded, modifier = Modifier.fillMaxWidth()) {
+                        Text("GO TO DEVICE LIST")
+                    }
+                }
+            }
+        }
     }
 }
 
