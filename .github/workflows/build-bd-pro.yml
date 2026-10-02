@@ -1,4 +1,4 @@
-name: Build BD Pro Android APK
+name: Build BD Pro Android APKs
 on:
   workflow_dispatch:
   push:
@@ -12,14 +12,20 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
-      - name: Build Debug APK
+      - name: Build Admin APK
         run: gradle :app:assembleDebug --no-daemon
-      - name: Upload APK
+      - name: Build Device Agent APK
+        run: gradle :agent:assembleDebug --no-daemon
+      - name: Upload Admin APK
         uses: actions/upload-artifact@v4
         with:
-          name: bd-pro-debug-apk
+          name: bd-pro-admin-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload Device Agent APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bd-pro-device-agent-debug-apk
+          path: agent/build/outputs/apk/debug/agent-debug.apk
