@@ -491,6 +491,28 @@ class MainActivity : ComponentActivity() {
                             var generatingEnrollment by remember(deviceId) {
                                 mutableStateOf(false)
                             }
+                            var autoLockEnabled by remember(deviceId) { mutableStateOf(true) }
+                            var antiTheftEnabled by remember(deviceId) { mutableStateOf(true) }
+                            var lockOnSimChange by remember(deviceId) { mutableStateOf(true) }
+                            var lockOnUsbDebugging by remember(deviceId) { mutableStateOf(true) }
+                            var protectionPolicyError by remember(deviceId) { mutableStateOf<String?>(null) }
+
+                            LaunchedEffect(deviceId) {
+                                if (authSessionStore.accessToken.isNullOrBlank()) return@LaunchedEffect
+                                val response = ApiClient(ApiConfig.DEFAULT_BASE_URL).get(
+                                    ApiConfig.ENDPOINT_PROTECTION_POLICY + "/" + deviceId + "/protection-policy",
+                                    accessToken = authSessionStore.accessToken
+                                )
+                                if (response.isSuccess) {
+                                    val data = response.data?.optJSONObject("data")
+                                    autoLockEnabled = data?.optBoolean("autoLockEnabled", true) ?: true
+                                    antiTheftEnabled = data?.optBoolean("antiTheftEnabled", true) ?: true
+                                    lockOnSimChange = data?.optBoolean("lockOnSimChange", true) ?: true
+                                    lockOnUsbDebugging = data?.optBoolean("lockOnUsbDebugging", true) ?: true
+                                } else {
+                                    protectionPolicyError = response.errorMessage
+                                }
+                            }
 
                             DeviceDetailsScreen(
 
@@ -712,6 +734,36 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
 
+                                autoLockEnabled = autoLockEnabled,
+                                antiTheftEnabled = antiTheftEnabled,
+                                lockOnSimChange = lockOnSimChange,
+                                lockOnUsbDebugging = lockOnUsbDebugging,
+                                onProtectionPolicyChange = { autoLock, antiTheft, simChange, usbDebugging ->
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        val payload = JSONObject()
+                                            .put("autoLockEnabled", autoLock)
+                                            .put("antiTheftEnabled", antiTheft)
+                                            .put("lockOnSimChange", simChange)
+                                            .put("lockOnUsbDebugging", usbDebugging)
+                                        val response = ApiClient(ApiConfig.DEFAULT_BASE_URL).put(
+                                            ApiConfig.ENDPOINT_PROTECTION_POLICY + "/" + deviceId + "/protection-policy",
+                                            payload,
+                                            authSessionStore.accessToken
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            if (response.isSuccess) {
+                                                autoLockEnabled = autoLock
+                                                antiTheftEnabled = antiTheft
+                                                lockOnSimChange = simChange
+                                                lockOnUsbDebugging = usbDebugging
+                                                protectionPolicyError = null
+                                            } else {
+                                                protectionPolicyError = response.errorMessage ?: "Could not save protection policy."
+                                            }
+                                        }
+                                    }
+                                },
+
                                 onRequestLocation = {
                                     lifecycleScope.launch(
                                         Dispatchers.IO
@@ -806,6 +858,17 @@ class MainActivity : ComponentActivity() {
                                     navController.popBackStack()
                                 }
                             )
+
+                            protectionPolicyError?.let { error ->
+                                AlertDialog(
+                                    onDismissRequest = { protectionPolicyError = null },
+                                    title = { Text("Protection Policy") },
+                                    text = { Text(error) },
+                                    confirmButton = {
+                                        TextButton(onClick = { protectionPolicyError = null }) { Text("OK") }
+                                    }
+                                )
+                            }
 
                             if (generatingEnrollment) {
                                 AlertDialog(
