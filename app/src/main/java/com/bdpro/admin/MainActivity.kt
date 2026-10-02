@@ -27,12 +27,14 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BDProApp() {
-    var loggedIn by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val session = remember { SessionManager(context) }
+    var loggedIn by remember { mutableStateOf(session.isLoggedIn()) }
     var selected by remember { mutableStateOf("Dashboard") }
 
     MaterialTheme {
         if (!loggedIn) {
-            LoginScreen { loggedIn = true }
+            LoginScreen { token -> session.saveToken(token); loggedIn = true }
         } else {
             Scaffold(
                 topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }
@@ -61,9 +63,9 @@ fun BDProApp() {
 }
 
 @Composable
-private fun LoginScreen(onLogin: () -> Unit) {
+private fun LoginScreen(onLogin: (String) -> Unit) {
     var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }\n    var loading by remember { mutableStateOf(false) }\n    var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Text("BD Pro", style = MaterialTheme.typography.headlineLarge)
         Text("Admin Control Panel")
@@ -72,8 +74,8 @@ private fun LoginScreen(onLogin: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth(), enabled = email.isNotBlank() && password.isNotBlank()) {
-            Text("LOGIN")
+        Button(onClick = { loading = true; error = null; Thread { val result = ApiClient.login(email, password); android.os.Handler(android.os.Looper.getMainLooper()).post { loading = false; result.onSuccess { onLogin(it.token) }.onFailure { error = it.message ?: "Login failed" } } } }, modifier = Modifier.fillMaxWidth(), enabled = !loading && email.isNotBlank() && password.isNotBlank()) {
+            Text(if (loading) "LOGGING IN..." else "LOGIN")
         }
     }
 }
