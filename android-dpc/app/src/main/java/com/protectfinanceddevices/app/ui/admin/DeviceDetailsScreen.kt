@@ -553,7 +553,6 @@ fun DeviceDetailsScreen(
 }
 
 @Composable
-@Composable
 private fun SwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
