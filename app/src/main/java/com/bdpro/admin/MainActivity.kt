@@ -182,6 +182,20 @@ class MainActivity : ComponentActivity() { override fun onCreate(savedInstanceSt
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
+        val diagnostic = activeCommand
+        if (diagnostic?.command == "DIAGNOSTICS" && diagnostic.status == "SUCCESS" && diagnostic.batteryPercent != null) {
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Device Diagnostics", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Battery: " + diagnostic.batteryPercent + "%")
+                    Text("Charging: " + if (diagnostic.charging == true) "Yes" else "No")
+                    Text("Device Admin: " + if (diagnostic.deviceAdmin == true) "Enabled" else "Disabled")
+                    diagnostic.uptimeSeconds?.let { Text("Uptime: " + (it / 3600) + "h " + ((it % 3600) / 60) + "m") }
+                }
+            }
+        }
         val location = activeCommand
         if (location?.command == "LOCATION" && location.status == "SUCCESS" && location.latitude != null && location.longitude != null) {
             Spacer(Modifier.height(16.dp))
