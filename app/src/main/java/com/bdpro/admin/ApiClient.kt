@@ -5,7 +5,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class LoginResult(val token: String, val email: String)
-data class DeviceDto(val id: String, val deviceId: String, val imei: String, val model: String, val customerName: String, val customerPhone: String, val status: String)
+data class DeviceDto(val id: String, val deviceId: String, val imei: String, val model: String, val customerName: String, val customerPhone: String, val status: String, val lastSeenAt: String? = null)
 data class DeviceEnrollment(val device: DeviceDto, val controlKey: String)
 data class CommandDto(val id: String, val deviceId: String, val command: String, val status: String, val createdAt: String, val result: String? = null)
 
@@ -36,7 +36,7 @@ object ApiClient {
         val a = JSONObject(request("GET", "/api/v1/devices", token)).getJSONArray("devices")
         (0 until a.length()).map {
             val j = a.getJSONObject(it)
-            DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"))
+            DeviceDto(j.getString("id"), j.getString("deviceId"), j.getString("imei"), j.optString("model"), j.optString("customerName"), j.optString("customerPhone"), j.optString("status"), if (j.isNull("lastSeenAt")) null else j.optString("lastSeenAt"))
         }
     }
 
