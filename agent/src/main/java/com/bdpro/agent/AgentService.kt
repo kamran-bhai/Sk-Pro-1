@@ -100,7 +100,7 @@ class AgentService : Service() {
     private fun collectLocation(): String {
         val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!fine && !coarse) return "Location permission not granted"
+        if (!fine && !coarse) return JSONObject().put("type", "location_error").put("message", "Location permission not granted").toString()
 
         val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
@@ -111,10 +111,17 @@ class AgentService : Service() {
                 if (best == null || location.time > best!!.time) best = location
             } catch (_: SecurityException) {}
         }
+
         return if (best != null) {
-            "lat=" + best.latitude + ", lon=" + best.longitude + ", accuracy=" + best.accuracy + "m"
+            JSONObject()
+                .put("type", "location")
+                .put("latitude", best.latitude)
+                .put("longitude", best.longitude)
+                .put("accuracyMeters", best.accuracy)
+                .put("timestamp", best.time)
+                .toString()
         } else {
-            "Location unavailable"
+            JSONObject().put("type", "location_error").put("message", "Location unavailable").toString()
         }
     }
 
