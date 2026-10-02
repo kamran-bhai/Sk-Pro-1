@@ -21,6 +21,10 @@ class AgentPrefs(context: Context) {
         get() = p.getBoolean("auto_lock_enabled", false)
         set(value) { p.edit().putBoolean("auto_lock_enabled", value).apply() }
 
+    var autoLockTimeoutMinutes: Int
+        get() = p.getInt("auto_lock_timeout_minutes", 5).coerceIn(1, 1440)
+        set(value) { p.edit().putInt("auto_lock_timeout_minutes", value.coerceIn(1, 1440)).apply() }
+
     var antiTheftEnabled: Boolean
         get() = p.getBoolean("anti_theft_enabled", false)
         set(value) { p.edit().putBoolean("anti_theft_enabled", value).apply() }
