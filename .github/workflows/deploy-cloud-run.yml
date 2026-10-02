@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  GCP_PROJECT_ID: "896573692943"
+  GCP_PROJECT_ID: "project-37d7936c-8f27-4db5-9bf"
   GCP_REGION: "asia-southeast1"
   CLOUD_RUN_SERVICE: "ais-dev"
 
@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -22,7 +23,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: "projects/532265354148/locations/global/workloadIdentityPools/github-actions/providers/github"
+          service_account: "sk-pro-deployer@project-37d7936c-8f27-4db5-9bf.iam.gserviceaccount.com"
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
