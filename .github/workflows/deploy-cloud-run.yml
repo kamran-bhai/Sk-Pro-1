@@ -68,7 +68,7 @@ jobs:
       - name: Verify login endpoint returns JSON
         run: |
           SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
-            --project "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --format='value(status.url)')"
 
