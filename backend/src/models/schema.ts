@@ -73,6 +73,11 @@ export interface EnrollmentRecord {
   simFingerprint?: string;
   simSubscriptionCount?: number;
   usbDebuggingActive: boolean;
+  /** Server-controlled protection policies for this enrolled device. */
+  autoLockEnabled?: boolean;
+  antiTheftEnabled?: boolean;
+  lockOnSimChange?: boolean;
+  lockOnUsbDebugging?: boolean;
   enrolledAt?: string;
   revokedAt?: string;
   revocationReason?: string;
