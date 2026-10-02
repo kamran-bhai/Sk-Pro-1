@@ -1,6 +1,6 @@
 const http = require("http");
 const crypto = require("crypto");
-const { devices, normalizeDevice } = require("./device-store");
+const { devices, normalizeDevice, queueCommand, commands } = require("./device-store");
 
 const PORT = Number(process.env.PORT || 10000);
 const JWT_SECRET = process.env.JWT_SECRET || "bd-pro-change-this-secret";
@@ -9,7 +9,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
 function b64(v){return Buffer.from(v).toString("base64url")}
 function makeToken(){const h=b64(JSON.stringify({alg:"HS256",typ:"JWT"}));const p=b64(JSON.stringify({sub:"admin-1",email:ADMIN_EMAIL,role:"ADMIN",exp:Math.floor(Date.now()/1000)+43200}));const s=crypto.createHmac("sha256",JWT_SECRET).update(h+"."+p).digest("base64url");return h+"."+p+"."+s}
-function send(res,status,data){res.writeHead(status,{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET, POST, OPTIONS"});res.end(JSON.stringify(data))}
+function send(res,status,data){res.writeHead(status,{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET, POST, DELETE, OPTIONS"});res.end(JSON.stringify(data))}
 function auth(req,res){const h=req.headers.authorization||"";if(!h.startsWith("Bearer ")){send(res,401,{message:"Missing access token"});return false}return true}
 function readBody(req,done){let raw="";req.on("data",c=>raw+=c);req.on("end",()=>{try{done(JSON.parse(raw||"{}"))}catch{done({})}})}
 
@@ -28,8 +28,18 @@ http.createServer((req,res)=>{
    if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});
    const d=normalizeDevice(b);devices.set(d.id,d);send(res,201,{device:d});
  });
+ const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
+ if(cm&&req.method==="POST")return readBody(req,b=>{
+   const device=devices.get(cm[1]); if(!device)return send(res,404,{message:"Device not found"});
+   const allowed=["LOCK","UNLOCK","LOCATION","DIAGNOSTICS","AUTOLOCK_ON","AUTOLOCK_OFF","ANTI_THEFT_ON","ANTI_THEFT_OFF"];
+   const command=String(b.command||"").trim().toUpperCase();
+   if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});
+   const item=queueCommand(device.id,command,b.payload||{});send(res,202,{command:item});
+ });
  const m=req.url.match(/^\/api\/v1\/devices\/([^/]+)$/);
  if(m&&req.method==="GET")return send(res,200,{device:devices.get(m[1])||null});
  if(m&&req.method==="DELETE"){devices.delete(m[1]);return send(res,200,{ok:true})}
+ const q=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
+ if(q&&req.method==="GET")return send(res,200,{command:commands.get(q[1])||null});
  send(res,404,{message:"Not found"});
 }).listen(PORT,"0.0.0.0",()=>console.log("BD Pro backend listening on "+PORT));
