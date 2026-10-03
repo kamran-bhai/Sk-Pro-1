@@ -69,6 +69,38 @@ class MainActivity : ComponentActivity() {
         })
 
         l.addView(Button(this).apply {
+            text = "TEST CONNECTION"
+            setOnClickListener {
+                val base = backend.text.toString().trimEnd('/')
+                val did = device.text.toString().trim()
+                val ck = key.text.toString().trim()
+                if (base.isBlank() || did.isBlank() || ck.isBlank()) {
+                    Toast.makeText(this@MainActivity, "Enter Backend URL, Device ID and Control Key", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                Thread {
+                    try {
+                        val c = (java.net.URL(base + "/api/v1/agent/devices/" + did + "/commands").openConnection() as java.net.HttpURLConnection).apply {
+                            requestMethod = "GET"
+                            connectTimeout = 10000
+                            readTimeout = 10000
+                            setRequestProperty("X-Device-Key", ck)
+                        }
+                        val code = c.responseCode
+                        c.disconnect()
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, if (code in 200..299) "Connection OK • Device is registered" else "Connection failed • HTTP " + code, Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Connection failed: " + (e.message ?: "network error"), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }.start()
+            }
+        })
+        
+        l.addView(Button(this).apply {
             text = "SAVE & START AGENT"
             setOnClickListener {
                 prefs.backendUrl = backend.text.toString()
