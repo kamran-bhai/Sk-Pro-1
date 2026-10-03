@@ -80,16 +80,18 @@ class MainActivity : ComponentActivity() {
                 }
                 Thread {
                     try {
-                        val c = (java.net.URL(base + "/api/v1/agent/devices/" + did + "/commands").openConnection() as java.net.HttpURLConnection).apply {
-                            requestMethod = "GET"
+                        val c = (java.net.URL(base + "/api/v1/agent/enroll").openConnection() as java.net.HttpURLConnection).apply {
+                            requestMethod = "POST"
                             connectTimeout = 10000
                             readTimeout = 10000
                             setRequestProperty("X-Device-Key", ck)
+                            doOutput = true
                         }
+                        c.outputStream.use { it.write(org.json.JSONObject().put("deviceId", did).toString().toByteArray()) }
                         val code = c.responseCode
                         c.disconnect()
                         runOnUiThread {
-                            Toast.makeText(this@MainActivity, if (code in 200..299) "Connection OK • Device is registered" else "Connection failed • HTTP " + code, Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, if (code in 200..299) "Connection OK • Device enrolled" else "Connection failed • HTTP " + code, Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
                         runOnUiThread {
