@@ -197,8 +197,7 @@ private fun lastSeenLabel(value: String?): String {
                         Spacer(Modifier.height(6.dp))
                         Text("Device ID: " + d.deviceId)
                         Text("IMEI: " + d.imei)
-                        Text("Customer: " + d.customerName.ifBlank { "—" })
-                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
+                        Text("Customer: " + d.customerName.ifBlank { "—" })                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
                         Spacer(Modifier.height(4.dp))
                         Text("Tap for details", style = MaterialTheme.typography.labelMedium)
                     }
@@ -397,8 +396,7 @@ private fun lastSeenLabel(value: String?): String {
                 }.start()
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("DISABLE ANTI THEFT") }
-        message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
+        ) { Text("DISABLE ANTI THEFT") }        message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
         Spacer(Modifier.height(12.dp))
         Text(
             "Anti-Theft uses the device agent's SIM subscription baseline. If a change is detected, the agent can lock the device. Android/OEM limitations mean this is not a guaranteed SIM-identity check.",
@@ -427,7 +425,17 @@ private fun lastSeenLabel(value: String?): String {
         }
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
+        Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List"))
+        if (device != null && connectionLabel(device) != "ONLINE") {
+            Spacer(Modifier.height(8.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("⚠ Device is offline", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall)
+                    Text("Commands will remain queued until the Device Agent reconnects. If it does not reconnect within 10 minutes, the command will be marked FAILED.")
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         if (device != null) {
             val visibleCommands = focusCommand?.let { listOf(it) } ?: commands
             visibleCommands.forEach { command ->
@@ -447,7 +455,26 @@ private fun lastSeenLabel(value: String?): String {
                 Spacer(Modifier.height(8.dp))
             }
         }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        message?.let { Text(it, color = if (activeCommand?.status == "FAILED") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+        Spacer(Modifier.height(16.dp))
+        Text("Command History", style = MaterialTheme.typography.titleMedium)
+        var history by remember { mutableStateOf<List<CommandDto>>(emptyList()) }
+        LaunchedEffect(device?.id, activeCommand?.status) {
+            val did = device?.id ?: return@LaunchedEffect
+            ApiClient.listCommands(token, did).onSuccess { history = it }
+        }
+        LazyColumn(Modifier.heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(history) { item ->
+                ElevatedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(item.command.replace("_", " "), style = MaterialTheme.typography.titleSmall)
+                        Text("Status: " + item.status)
+                        Text("Created: " + lastSeenLabel(item.createdAt))
+                        item.result?.takeIf { it.isNotBlank() }?.let { Text("Result: " + it) }
+                    }
+                }
+            }
+        }
         val diagnostic = activeCommand
         if (diagnostic?.command == "DIAGNOSTICS" && diagnostic.status == "SUCCESS" && diagnostic.batteryPercent != null) {
             Spacer(Modifier.height(16.dp))
