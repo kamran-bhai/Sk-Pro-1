@@ -4,11 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, for example 1.0.1"
+        description: "Release version, for example 1.0.2"
         required: true
-        default: "1.0.1"
-  push:
-    branches: [ main ]
+        default: "1.0.2"
+      prerelease:
+        description: "Mark this release as a pre-release"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,8 +40,9 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: bd-pro-v1.0.1
-          name: BD Pro Device Agent v1.0.1
+          tag_name: bd-pro-v${{ inputs.version }}
+          name: BD Pro Device Agent v${{ inputs.version }}
+          prerelease: ${{ inputs.prerelease }}
           generate_release_notes: true
           files: |
             bd-pro-device-agent.apk
