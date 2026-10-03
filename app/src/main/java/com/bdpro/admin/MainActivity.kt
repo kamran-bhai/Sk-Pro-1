@@ -566,6 +566,7 @@ private fun lastSeenLabel(value: String?): String {
         "ANTI_THEFT_ON" to "Anti theft",
         "ANTI_THEFT_OFF" to "Disable anti theft"
     )
+    if (device != null) {
             val visibleCommands = focusCommand?.let { commands.filter { pair -> pair.first == it } } ?: commands
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
                 items(visibleCommands.chunked(2)) { row ->
