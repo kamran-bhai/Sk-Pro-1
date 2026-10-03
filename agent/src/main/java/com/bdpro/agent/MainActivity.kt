@@ -187,6 +187,8 @@ class MainActivity : ComponentActivity() {
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("X-Device-Key", controlKey)
+                setRequestProperty("X-Agent-Version", BuildConfig.VERSION_NAME)
+                setRequestProperty("X-Agent-Status", "RUNNING")
                 doOutput = true
             }
 
