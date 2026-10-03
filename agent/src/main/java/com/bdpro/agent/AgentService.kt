@@ -190,7 +190,7 @@ class AgentService : Service() {
     private fun ack(p: AgentPrefs, id: String, status: String, result: String?) {
         val body = JSONObject().put("status", status).put("result", result).toString()
         val c = (URL(p.backendUrl + "/api/v1/agent/commands/" + id + "/ack").openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"; connectTimeout = 15000; readTimeout = 15000; doOutput = true; setRequestProperty("Content-Type", "application/json"); setRequestProperty("X-Device-Key", p.controlKey)
+            requestMethod = "POST"; connectTimeout = 15000; readTimeout = 15000; doOutput = true; setRequestProperty("Content-Type", "application/json"); setRequestProperty("Accept", "application/json"); setRequestProperty("X-Device-Key", p.controlKey); setRequestProperty("X-Agent-Version", BuildConfig.VERSION_NAME); setRequestProperty("X-Agent-Status", "RUNNING")
         }
         try {
             c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
