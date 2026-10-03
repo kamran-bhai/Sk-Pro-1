@@ -169,7 +169,7 @@ private fun RefEnrollQr(onDone:()->Unit) {
         }
         item {
             Text("Setup order",fontWeight=FontWeight.Bold)
-            Text("1. Factory-reset / unprovisioned customer phone → scan SETUP QR.\n2. Android downloads Test DPC and completes device-owner provisioning.\n3. After the phone reaches the normal setup/home flow, scan TRANSFER QR with Chrome / Google Lens.\n4. Install/open BK Pro and complete its enrollment with the device Control Key.")
+            Text("1. Factory-reset / unprovisioned customer phone → scan SETUP QR.\n2. Android downloads Test DPC and completes device-owner provisioning. The video shows Test DPC appearing more than once; that is a managed/profile copy, not a separate APK we need to install manually.\n3. After the phone reaches the normal setup/home flow, scan TRANSFER QR with Chrome / Google Lens.\n4. Install/open BK Pro and complete its enrollment with the device Control Key.")
         }
         item { Button(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("DONE")} }
     }
