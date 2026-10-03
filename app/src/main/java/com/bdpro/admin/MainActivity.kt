@@ -38,42 +38,167 @@ fun BDProApp() {
     var loggedIn by remember { mutableStateOf(session.isLoggedIn()) }
     var selected by remember { mutableStateOf("Dashboard") }
     var selectedDevice by remember { mutableStateOf<DeviceDto?>(null) }
+    var tab by remember { mutableStateOf("Home") }
     BackHandler(enabled = selected != "Dashboard") { selected = "Dashboard" }
     MaterialTheme {
         if (!loggedIn) LoginScreen { token -> session.saveToken(token); loggedIn = true }
-        else Scaffold(topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }) { pad ->
-            Box(Modifier.padding(pad)) {
-                when (selected) {
-                    "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Device List" }
-                    "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
-                    "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(session.token() ?: "", it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
-                    "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
-                    "Location" -> RunCommandScreen(session.token() ?: "", selectedDevice, "LOCATION")
-                    "Diagnostics" -> RunCommandScreen(session.token() ?: "", selectedDevice, "DIAGNOSTICS")
-                    "Customers" -> CustomersScreen(session.token() ?: "")
-                    "EMI / Installment" -> EmiScreen(session.token() ?: "")
-                    "eNACH" -> EnachScreen(session.token() ?: "")
-                    "Remove Device" -> RemoveDeviceScreen(session.token() ?: "")
-                    "Admin Profile" -> AdminProfileScreen()
-                    "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
-                    "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
-                    else -> DashboardScreen { selected = it }
+        else {
+            val primary = selected == "Dashboard"
+            Scaffold(
+                topBar = { if (!primary) TopAppBar(title = { Text(selected) }, navigationIcon = { TextButton(onClick = { selected = "Dashboard" }) { Text("‹ Back") } }) },
+                bottomBar = {
+                    if (primary) NavigationBar {
+                        listOf("Home" to "⌂", "Customers" to "♙", "Devices" to "▣", "Payments" to "৳", "More" to "⋮").forEach { (name, icon) ->
+                            NavigationBarItem(selected = tab == name, onClick = { tab = name }, icon = { Text(icon, style = MaterialTheme.typography.titleLarge) }, label = { Text(name) })
+                        }
+                    }
+                }
+            ) { pad ->
+                Box(Modifier.padding(pad)) {
+                    when (selected) {
+                        "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Dashboard"; tab = "Devices" }
+                        "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
+                        "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(session.token() ?: "", it) { selected = "Run Command" } }
+                        "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
+                        "Location" -> RunCommandScreen(session.token() ?: "", selectedDevice, "LOCATION")
+                        "Diagnostics" -> RunCommandScreen(session.token() ?: "", selectedDevice, "DIAGNOSTICS")
+                        "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
+                        "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
+                        "Customers" -> CustomersScreen(session.token() ?: "")
+                        "EMI / Installment" -> EmiScreen(session.token() ?: "")
+                        "eNACH" -> EnachScreen(session.token() ?: "")
+                        "Remove Device" -> RemoveDeviceScreen(session.token() ?: "")
+                        "Admin Profile" -> AdminProfileScreen()
+                        else -> when (tab) {
+                            "Customers" -> CustomersScreen(session.token() ?: "")
+                            "Devices" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
+                            "Payments" -> EmiScreen(session.token() ?: "")
+                            "More" -> MoreScreen { selected = it }
+                            else -> DashboardScreen(session.token() ?: "") { action ->
+                                when (action) {
+                                    "ADD_DEVICE" -> selected = "Add Device"
+                                    "DEVICES" -> tab = "Devices"
+                                    "CUSTOMERS" -> tab = "Customers"
+                                    "PAYMENTS" -> tab = "Payments"
+                                    else -> selected = action
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Composable private fun DashboardScreen(onSelect: (String) -> Unit) {
-    Column(Modifier.padding(16.dp)) {
-        Text("BD Pro", style = MaterialTheme.typography.headlineLarge); Text("Device Management Console", style = MaterialTheme.typography.titleMedium); Text("Connected to the live BD Pro backend", style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(16.dp))
-        modules.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { name -> ElevatedButton({ onSelect(name) }, Modifier.weight(1f).height(72.dp)) { Text(name) } }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+@Composable
+private fun DashboardScreen(token: String, onSelect: (String) -> Unit) {
+    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
+    var customers by remember { mutableStateOf<List<CustomerDto>>(emptyList()) }
+    var agreements by remember { mutableStateOf<List<AgreementDto>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        ApiClient.listDevices(token).onSuccess { devices = it }
+        ApiClient.listCustomers(token).onSuccess { customers = it }
+        ApiClient.listAgreements(token).onSuccess { agreements = it }
+    }
+    val online = devices.count { it.status.equals("ONLINE", true) }
+    val offline = devices.count { it.status.equals("OFFLINE", true) }
+    val outstanding = agreements.sumOf { it.remainingAmount }
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 18.dp, bottom = 24.dp)
+    ) {
+        item {
+            Text("BD Pro", style = MaterialTheme.typography.headlineLarge)
+            Text("Device & Finance Management", style = MaterialTheme.typography.titleMedium)
+            Text("Live control centre", style = MaterialTheme.typography.bodyMedium)
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Overview", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DashboardStat("Devices", devices.size.toString(), Modifier.weight(1f))
+                        DashboardStat("Online", online.toString(), Modifier.weight(1f))
+                        DashboardStat("Offline", offline.toString(), Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DashboardStat("Customers", customers.size.toString(), Modifier.weight(1f))
+                        DashboardStat("Agreements", agreements.size.toString(), Modifier.weight(1f))
+                    }
+                }
             }
-            Spacer(Modifier.height(10.dp))
+        }
+        item { Text("Quick Actions", style = MaterialTheme.typography.titleLarge) }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickActionCard("Add Device", "＋", Modifier.weight(1f)) { onSelect("ADD_DEVICE") }
+                QuickActionCard("Customers", "♙", Modifier.weight(1f)) { onSelect("CUSTOMERS") }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickActionCard("Device Control", "▣", Modifier.weight(1f)) { onSelect("DEVICES") }
+                QuickActionCard("Payments", "৳", Modifier.weight(1f)) { onSelect("PAYMENTS") }
+            }
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Finance", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Outstanding balance: ${"%.2f".format(outstanding)}")
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(onClick = { onSelect("PAYMENTS") }, Modifier.fillMaxWidth()) { Text("OPEN EMI / INSTALLMENTS") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, tonalElevation = 2.dp, shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.padding(12.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineSmall)
+            Text(label, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(title: String, icon: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    ElevatedCard(onClick = onClick, modifier = modifier.height(104.dp)) {
+        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Text(icon, style = MaterialTheme.typography.headlineSmall)
+            Text(title, style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+@Composable
+private fun MoreScreen(onSelect: (String) -> Unit) {
+    val items = listOf(
+        "Auto Lock" to "Automatic device lock policy",
+        "Anti Theft" to "SIM change protection",
+        "Location" to "Request latest location",
+        "Diagnostics" to "Battery and device health",
+        "eNACH" to "Manage mandates",
+        "Remove Device" to "Permanently remove a device",
+        "Admin Profile" to "Admin account and backend"
+    )
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        item { Text("More", style = MaterialTheme.typography.headlineSmall) }
+        items(items) { (title, subtitle) ->
+            ElevatedCard(onClick = { onSelect(title) }, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }
@@ -431,51 +556,46 @@ private fun lastSeenLabel(value: String?): String {
     val context = LocalContext.current
     var message by remember { mutableStateOf<String?>(null) }
     var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
-    val commands = listOf("LOCK", "UNLOCK", "LOCATION", "DIAGNOSTICS", "AUTOLOCK_ON", "AUTOLOCK_OFF", "ANTI_THEFT_ON", "ANTI_THEFT_OFF")
-    LaunchedEffect(activeCommand?.id) {
-        val id = activeCommand?.id ?: return@LaunchedEffect
-        while (true) {
-            delay(2000)
-            val result = ApiClient.commandStatus(token, id)
-            var finished = false
-            result.onSuccess { updated ->
-                activeCommand = updated
-                message = updated.command + " • " + updated.status + (updated.result?.let { " • " + it } ?: "")
-                finished = updated.status == "SUCCESS" || updated.status == "FAILED"
-            }
-            if (finished) break
-        }
-    }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List"))
-        if (device != null && connectionLabel(device) != "ONLINE") {
-            Spacer(Modifier.height(8.dp))
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text("⚠ Device is offline", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall)
-                    Text("Commands will remain queued until the Device Agent reconnects. If it does not reconnect within 10 minutes, the command will be marked FAILED.")
+    val commands = listOf(
+        "LOCK" to "Lock device",
+        "UNLOCK" to "Unlock request",
+        "LOCATION" to "Fetch location",
+        "DIAGNOSTICS" to "Device health",
+        "AUTOLOCK_ON" to "Auto lock",
+        "AUTOLOCK_OFF" to "Disable auto lock",
+        "ANTI_THEFT_ON" to "Anti theft",
+        "ANTI_THEFT_OFF" to "Disable anti theft"
+    )
+            val visibleCommands = focusCommand?.let { commands.filter { pair -> pair.first == it } } ?: commands
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
+                items(visibleCommands.chunked(2)) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { (command, label) ->
+                            ElevatedCard(
+                                onClick = {
+                                    message = "Sending $command..."
+                                    Thread {
+                                        val result = ApiClient.sendCommand(token, device.id, command)
+                                        Handler(Looper.getMainLooper()).post {
+                                            result.onSuccess { activeCommand = it; message = "$command • QUEUED" }
+                                                .onFailure { message = it.message ?: "Command failed" }
+                                        }
+                                    }.start()
+                                },
+                                modifier = Modifier.weight(1f).height(96.dp)
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                                    Text(command.replace("_", " "), style = MaterialTheme.typography.titleSmall)
+                                    Text(label, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
-        }
-        Spacer(Modifier.height(16.dp))
-        if (device != null) {
-            val visibleCommands = focusCommand?.let { listOf(it) } ?: commands
-            visibleCommands.forEach { command ->
-                Button(
-                    onClick = {
-                        message = "Sending $command..."
-                        Thread {
-                            val result = ApiClient.sendCommand(token, device.id, command)
-                            Handler(Looper.getMainLooper()).post {
-                                result.onSuccess { activeCommand = it; message = command + " • QUEUED" }.onFailure { message = it.message ?: "Command failed" }
-                            }
-                        }.start()
-                    },
-                    enabled = activeCommand?.status != "QUEUED" && activeCommand?.status != "SENT",
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(command.replace("_", " ")) }
-                Spacer(Modifier.height(8.dp))
-            }
+        } else {
+            Text("Select a device from Device List to control it.", style = MaterialTheme.typography.bodyMedium)
         }
         message?.let { Text(it, color = if (activeCommand?.status == "FAILED") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
         Spacer(Modifier.height(16.dp))
