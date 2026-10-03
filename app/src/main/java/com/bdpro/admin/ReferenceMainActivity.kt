@@ -88,11 +88,12 @@ private fun ReferenceApp() {
 }
 
 @Composable private fun RefControl(token:String,device:DeviceDto?){
+var liveDevice by remember(device?.id){mutableStateOf(device)}
 val cmds=listOf("LOCK" to "Ultimate Screen Lock","UNLOCK" to "Unlock request","LOCATION" to "Fetch Location","DIAGNOSTICS" to "Diagnostics","AUTOLOCK_ON" to "Auto Lock","AUTOLOCK_OFF" to "Auto Lock Off","ANTI_THEFT_ON" to "Anti Theft","ANTI_THEFT_OFF" to "Anti Theft Off")
 var msg by remember{mutableStateOf<String?>(null)};var history by remember{mutableStateOf<List<CommandDto>>(emptyList())};var busy by remember{mutableStateOf(false)}
-LaunchedEffect(device?.id){while(device!=null){ApiClient.listCommands(token,device.id).onSuccess{history=it};delay(3000)}}
+LaunchedEffect(device?.id){while(device!=null){val d=device ?: break;ApiClient.listDevices(token,search=d.deviceId).onSuccess{items->items.firstOrNull{it.id==d.id||it.deviceId==d.deviceId}?.let{liveDevice=it}};ApiClient.listCommands(token,d.id).onSuccess{history=it};delay(3000)}}
 LazyColumn(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp),contentPadding=PaddingValues(bottom=24.dp)){
-item{Text("Device Control",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text(device?.deviceId?:"No device selected");Text("Status: ${device?.status?:"UNKNOWN"} • Agent: ${device?.agentStatus?:"UNKNOWN"}",style=MaterialTheme.typography.bodySmall)}
+item{Text("Device Control",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text(liveDevice?.deviceId?:"No device selected");Text("Status: ${liveDevice?.status?:"UNKNOWN"} • Agent: ${liveDevice?.agentStatus?:"UNKNOWN"}",style=MaterialTheme.typography.bodySmall)}
 items(cmds.chunked(2)){row->Row(horizontalArrangement=Arrangement.spacedBy(9.dp)){row.forEach{(c,l)->ElevatedCard(onClick={val d=device?:return@ElevatedCard;if(busy)return@ElevatedCard;busy=true;Thread{val r=ApiClient.sendCommand(token,d.id,c);android.os.Handler(android.os.Looper.getMainLooper()).post{busy=false;r.onSuccess{msg="$"+"c • QUEUED"}.onFailure{msg=it.message?:"Command failed"}}}.start()},modifier=Modifier.weight(1f).height(98.dp),shape=RoundedCornerShape(15.dp)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.SpaceBetween){Text(l,fontWeight=FontWeight.Bold);Text(c,style=MaterialTheme.typography.labelSmall)}}};if(row.size==1)Spacer(Modifier.weight(1f))}}
 item{msg?.let{Text(it,color=MaterialTheme.colorScheme.primary)}}
 item{Text("Command History",fontWeight=FontWeight.Bold);if(history.isEmpty())Text("No commands yet.",style=MaterialTheme.typography.bodySmall)}
