@@ -103,10 +103,22 @@ fun BDProApp() {
             Spacer(Modifier.height(16.dp))
             ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
                 Text("Device Control Key", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(8.dp)); Text(key); Spacer(Modifier.height(10.dp))
+                Text("Agent setup", style = MaterialTheme.typography.titleMedium); Spacer(Modifier.height(4.dp))
+                Text("1. Install the BD Pro Device Agent on the customer's phone.")
+                Text("2. Enter this Device ID: " + deviceId)
+                Text("3. Enter this Control Key exactly as shown above.")
+                Text("4. Keep Backend URL as https://bd-pro-backend.onrender.com")
+                Text("5. Tap TEST CONNECTION, then SAVE & START AGENT.")
+                Spacer(Modifier.height(10.dp))
                 Button(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("BD Pro Control Key", key)); message = "Control Key copied."
                 }, modifier = Modifier.fillMaxWidth()) { Text("COPY CONTROL KEY") }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("BD Pro Device ID", deviceId)); message = "Device ID copied."
+                }, modifier = Modifier.fillMaxWidth()) { Text("COPY DEVICE ID") }
                 Spacer(Modifier.height(8.dp)); OutlinedButton(onClick = onAdded, modifier = Modifier.fillMaxWidth()) { Text("GO TO DEVICE LIST") }
             }}
         }
