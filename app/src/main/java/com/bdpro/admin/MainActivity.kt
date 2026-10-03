@@ -209,7 +209,8 @@ private fun lastSeenLabel(value: String?): String {
                         Text("Device ID: " + d.deviceId)
                         Text("IMEI: " + d.imei)
                         Text("Customer: " + d.customerName.ifBlank { "—" })
-                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
+                        Text("Agent: " + d.agentStatus.ifBlank { "UNKNOWN" } + " • v" + d.agentVersion.ifBlank { "—" })
+                        Text("Last heartbeat: " + lastSeenLabel(d.lastSeenAt))
                         Spacer(Modifier.height(4.dp))
                         Text("Tap for details", style = MaterialTheme.typography.labelMedium)
                     }
@@ -249,14 +250,20 @@ private fun lastSeenLabel(value: String?): String {
         Text("Phone: " + device.customerPhone.ifBlank { "—" })
         Spacer(Modifier.height(10.dp))
         Text("Connection: " + connectionLabel(device))
-        Text("Last online: " + lastSeenLabel(device.lastSeenAt))
+        Text("Last heartbeat: " + lastSeenLabel(device.lastSeenAt))
         Text("Agent version: " + device.agentVersion.ifBlank { "Unknown" })
-        Text("Agent status: " + device.agentStatus.ifBlank { "UNKNOWN" })
+        Text("Agent health: " + device.agentStatus.ifBlank { "UNKNOWN" })
         Text(
-            if (connectionLabel(device) == "ONLINE")
-                "Device Agent is currently connected to the backend."
-            else
-                "Device Agent is not currently connected. Make sure the Agent is running and has internet access.",
+            when {
+                connectionLabel(device) == "ONLINE" && device.agentStatus.uppercase() == "RUNNING" ->
+                    "✓ Agent connected and reporting normally."
+                connectionLabel(device) == "ONLINE" ->
+                    "⚠ Agent is connected, but its reported state is " + device.agentStatus + "."
+                device.lastSeenAt.isNullOrBlank() ->
+                    "⚠ Agent has never reported. Complete Agent setup and TEST CONNECTION on the device."
+                else ->
+                    "✕ Agent heartbeat is stale. Check that the Agent is running, Device Admin is enabled, and the phone has internet."
+            },
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 6.dp)
         )
