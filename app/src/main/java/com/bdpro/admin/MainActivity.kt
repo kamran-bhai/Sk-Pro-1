@@ -658,7 +658,6 @@ private fun lastSeenLabel(value: String?): String {
                     context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                 }, modifier = Modifier.fillMaxWidth()) { Text("OPEN IN MAP") }
             }}
-        }
     }
 }
 
