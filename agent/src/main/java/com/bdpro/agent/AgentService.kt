@@ -43,7 +43,7 @@ class AgentService : Service() {
     }
     private fun poll(p: AgentPrefs) {
         val c = (URL(p.backendUrl + "/api/v1/agent/devices/" + p.deviceId + "/commands").openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"; connectTimeout = 15000; readTimeout = 15000; setRequestProperty("X-Device-Key", p.controlKey)
+            requestMethod = "GET"; connectTimeout = 15000; readTimeout = 15000; setRequestProperty("X-Device-Key", p.controlKey); setRequestProperty("X-Agent-Version", BuildConfig.VERSION_NAME); setRequestProperty("X-Agent-Status", "RUNNING")
         }
         val code = c.responseCode
         val body = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
