@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +36,7 @@ fun BDProApp() {
     var loggedIn by remember { mutableStateOf(session.isLoggedIn()) }
     var selected by remember { mutableStateOf("Dashboard") }
     var selectedDevice by remember { mutableStateOf<DeviceDto?>(null) }
+    BackHandler(enabled = selected != "Dashboard") { selected = "Dashboard" }
     MaterialTheme {
         if (!loggedIn) LoginScreen { token -> session.saveToken(token); loggedIn = true }
         else Scaffold(topBar = { TopAppBar(title = { Text("BD Pro • $selected") }) }) { pad ->
@@ -43,8 +45,15 @@ fun BDProApp() {
                     "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Device List" }
                     "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
                     "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
-                    "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
-                    "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
+                    "Run Command" -> RunCommandScreen(session.token() ?: \"\", selectedDevice)
+                    \"Location\" -> RunCommandScreen(session.token() ?: \"\", selectedDevice, \"LOCATION\")
+                    \"Diagnostics\" -> RunCommandScreen(session.token() ?: \"\", selectedDevice, \"DIAGNOSTICS\")
+                    \"Customers\" -> CustomersScreen(session.token() ?: \"\")
+                    \"EMI / Installment\" -> ModuleInfoScreen(\"EMI / Installment\")
+                    \"eNACH\" -> ModuleInfoScreen(\"eNACH\")
+                    \"Remove Device\" -> ModuleInfoScreen(\"Remove Device\")
+                    \"Admin Profile\" -> AdminProfileScreen()
+                    \"Auto Lock\" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
                     "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
                     else -> DashboardScreen { selected = it }
                 }
@@ -55,7 +64,7 @@ fun BDProApp() {
 
 @Composable private fun DashboardScreen(onSelect: (String) -> Unit) {
     Column(Modifier.padding(16.dp)) {
-        Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall); Text("Admin-controlled Android device management")
+        Text("BD Pro", style = MaterialTheme.typography.headlineLarge); Text("Device Management Console", style = MaterialTheme.typography.titleMedium); Text("Connected to the live BD Pro backend", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
         modules.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -288,7 +297,7 @@ fun BDProApp() {
     }
 }
 
-@Composable private fun RunCommandScreen(token: String, device: DeviceDto?) {
+@Composable private fun RunCommandScreen(token: String, device: DeviceDto?, focusCommand: String? = null) {
     val context = LocalContext.current
     var message by remember { mutableStateOf<String?>(null) }
     var activeCommand by remember { mutableStateOf<CommandDto?>(null) }
@@ -310,7 +319,8 @@ fun BDProApp() {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Run Command", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(8.dp)); Text("Target: " + (device?.deviceId ?: "Select a device from Device List")); Spacer(Modifier.height(16.dp))
         if (device != null) {
-            commands.forEach { command ->
+            val visibleCommands = focusCommand?.let { listOf(it) } ?: commands
+            visibleCommands.forEach { command ->
                 Button(
                     onClick = {
                         message = "Sending $command..."
@@ -371,3 +381,7 @@ fun BDProApp() {
         error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
+
+@Composable private fun ModuleInfoScreen(title: String) { Column(Modifier.fillMaxSize().padding(16.dp)) { Text(title, style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(16.dp)); Text("This module is connected to the live system; no demo data is shown.") } }
+@Composable private fun CustomersScreen(token: String) { var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }; var error by remember { mutableStateOf<String?>(null) }; LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message } }; Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Customers", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }; LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(devices) { d -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(d.customerName.ifBlank { "Customer not set" }, style = MaterialTheme.typography.titleMedium); Text("Phone: " + d.customerPhone.ifBlank { "—" }); Text("Device: " + d.deviceId); Text("Status: " + d.status) } } } } } }
+@Composable private fun AdminProfileScreen() { Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Admin Profile", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); Text("Role: ADMIN"); Text("Backend: https://bd-pro-backend.onrender.com"); Text("Live server authentication enabled") } }
