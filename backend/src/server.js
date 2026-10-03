@@ -1,6 +1,6 @@
 const http=require("http"),crypto=require("crypto");
 const {initDb}=require("./db");
-const {normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
+const {normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
 const {listCustomers,saveCustomer,listAgreements,saveAgreement,markInstallmentPaid,listEnach,saveEnach,updateEnach}=require("./business-store");
 const PORT=Number(process.env.PORT||10000),JWT_SECRET=process.env.JWT_SECRET||"bd-pro-change-this-secret";
 const ADMIN_EMAIL=(process.env.ADMIN_EMAIL||"admin@bdpro.local").toLowerCase(),ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"ChangeMe123!";
@@ -33,6 +33,12 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="POST"&&req.url==="/api/v1/enach")return readBody(req,async b=>{try{send(res,201,{enach:await saveEnach(b)})}catch(e){send(res,400,{message:e.message})}});
   const nach=req.url.match(/^\/api\/v1\/enach\/([^/]+)\/status$/);
   if(nach&&req.method==="POST")return readBody(req,async b=>{try{const e=await updateEnach(nach[1],String(b.status||"").toUpperCase());if(!e)return send(res,404,{message:"eNACH record not found"});send(res,200,{enach:e})}catch(e){send(res,400,{message:e.message})}});
+  if(req.method==="GET"&&req.url.startsWith("/api/v1/commands")){
+    const u=new URL(req.url,"http://localhost");
+    const deviceId=u.searchParams.get("deviceId");
+    const limit=u.searchParams.get("limit")||"50";
+    return send(res,200,{commands:await listCommands(deviceId,limit)});
+  }
   if(req.method==="GET"&&req.url==="/api/v1/devices"){const ds=await listDevices();return send(res,200,{devices:ds.map(({controlKey,...d})=>d)})}
   if(req.method==="POST"&&req.url==="/api/v1/devices")return readBody(req,async b=>{if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});try{const d=await saveDevice(normalizeDevice(b));send(res,201,{device:d,enrollment:{deviceId:d.deviceId,controlKey:d.controlKey}})}catch(e){if(e.code==="23505")send(res,409,{message:"Device ID or control key already exists"});else throw e}});
   const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
