@@ -1,0 +1,42 @@
+name: Publish BD Pro Customer Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 1.0.1"
+        required: true
+        default: "1.0.1"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build Customer Agent APK
+        run: gradle :agent:assembleDebug --no-daemon
+
+      - name: Prepare release APK
+        run: cp agent/build/outputs/apk/debug/agent-debug.apk bd-pro-device-agent.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bd-pro-v${{ inputs.version }}
+          name: BD Pro Device Agent v${{ inputs.version }}
+          generate_release_notes: true
+          files: |
+            bd-pro-device-agent.apk
