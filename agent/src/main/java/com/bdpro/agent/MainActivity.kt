@@ -221,6 +221,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != locationRequestCode && requestCode != phoneStateRequestCode) return
+
+        val locationOk = hasLocationPermission()
+        val phoneOk = hasPhoneStatePermission()
+
+        if (locationOk && phoneOk && prefs.deviceId.isNotBlank() && prefs.controlKey.isNotBlank()) {
+            startAgent()
+        } else {
+            val missing = buildList {
+                if (!locationOk) add("Location")
+                if (!phoneOk) add("Phone State")
+            }.joinToString(" + ")
+            if (missing.isNotBlank()) {
+                Toast.makeText(
+                    this,
+                    "Permission required: $missing. Then tap SAVE & START AGENT.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     private fun startAgent() {
         ContextCompat.startForegroundService(
             this,
