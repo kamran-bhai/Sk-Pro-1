@@ -44,5 +44,10 @@ object ApiClient {
  private fun parseAgreement(j:JSONObject)=AgreementDto(j.getString("id"),j.getString("customerId"),j.getString("deviceId"),j.getDouble("totalAmount"),j.getDouble("downPayment"),j.getDouble("installmentAmount"),j.getInt("numberOfInstallments"),j.getInt("paidInstallments"),j.getDouble("remainingAmount"),j.optString("nextDueDate"))
  fun sendCommand(token:String,deviceId:String,command:String,payload:JSONObject?=null)=runCatching{val body=JSONObject().put("command",command).apply{if(payload!=null)put("payload",payload)}.toString();parseCommand(JSONObject(request("POST","/api/v1/devices/$deviceId/commands",token,body)).getJSONObject("command"))}
  fun commandStatus(token:String,id:String)=runCatching{parseCommand(JSONObject(request("GET","/api/v1/commands/$id",token)).getJSONObject("command"))}
+ fun listCommands(token:String,deviceId:String?=null)=runCatching{
+  val path="/api/v1/commands"+(deviceId?.let{"?deviceId="+java.net.URLEncoder.encode(it,"UTF-8")}&limit=50} ?: "?limit=50")
+  val a=JSONObject(request("GET",path,token)).getJSONArray("commands")
+  (0 until a.length()).map{parseCommand(a.getJSONObject(it))}
+ }
  private fun parseCommand(j:JSONObject):CommandDto{val raw=j.optString("result").takeIf{!j.isNull("result")};val p=raw?.let{runCatching{JSONObject(it)}.getOrNull()};return CommandDto(j.getString("id"),j.getString("deviceId"),j.getString("command"),j.getString("status"),j.getString("createdAt"),raw,p?.takeIf{it.optString("type")=="location"}?.optDouble("latitude")?.takeUnless{it.isNaN()},p?.takeIf{it.optString("type")=="location"}?.optDouble("longitude")?.takeUnless{it.isNaN()},p?.takeIf{it.optString("type")=="location"}?.optDouble("accuracyMeters")?.takeUnless{it.isNaN()},p?.takeIf{it.optString("type")=="location"}?.optLong("timestamp")?.takeUnless{it==0L},p?.takeIf{it.optString("type")=="diagnostics"}?.optInt("batteryPercent")?.takeUnless{it==0},p?.takeIf{it.optString("type")=="diagnostics"}?.optBoolean("charging"),p?.takeIf{it.optString("type")=="diagnostics"}?.optBoolean("deviceAdmin"),p?.takeIf{it.optString("type")=="diagnostics"}?.optLong("uptimeSeconds")?.takeUnless{it==0L})}
 }
