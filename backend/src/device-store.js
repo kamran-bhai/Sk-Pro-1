@@ -74,14 +74,30 @@ async function markDeviceOnline(d,agentVersion="",agentStatus="RUNNING"){
   const {rows}=await pool.query("UPDATE devices SET status='ONLINE',last_seen_at=$2,agent_version=$3,agent_status=$4 WHERE id=$1 RETURNING *",[d.id,d.lastSeenAt,d.agentVersion,d.agentStatus]);
   return rowToDevice(rows[0])||d;
 }
-async function queueCommand(deviceId,command,payload={}){
+async function queueCommand(deviceId,command,payload={},dedupeKey=null){
   const id="cmd-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),now=new Date().toISOString();
   const item={id,deviceId,command,payload,status:"QUEUED",createdAt:now,updatedAt:now,result:null};
-  if(!pool){commands.set(id,item);return item}
-  const {rows}=await pool.query(`INSERT INTO commands(id,device_id,command,payload,status,created_at,updated_at,result)
-    VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8) RETURNING *`,
-    [id,deviceId,command,JSON.stringify(payload),"QUEUED",now,now,null]);
-  return rowToCommand(rows[0]);
+  if(!pool){
+    if(dedupeKey){
+      const existing=Array.from(commands.values()).find(c=>c.dedupeKey===dedupeKey);
+      if(existing)return existing;
+    }
+    item.dedupeKey=dedupeKey;
+    commands.set(id,item);
+    return item;
+  }
+  try {
+    const {rows}=await pool.query(`INSERT INTO commands(id,device_id,command,payload,status,created_at,updated_at,result,dedupe_key)
+      VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9) RETURNING *`,
+      [id,deviceId,command,JSON.stringify(payload),"QUEUED",now,now,null,dedupeKey]);
+    return rowToCommand(rows[0]);
+  } catch(e) {
+    if(e.code==="23505" && dedupeKey){
+      const existing=await pool.query("SELECT * FROM commands WHERE dedupe_key=$1 LIMIT 1",[dedupeKey]);
+      if(existing.rows[0])return rowToCommand(existing.rows[0]);
+    }
+    throw e;
+  }
 }
 async function getQueuedCommands(deviceId,limit=10){
   if(!pool)return Array.from(commands.values()).filter(c=>c.deviceId===deviceId&&c.status==="QUEUED").sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,limit);
