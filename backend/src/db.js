@@ -8,7 +8,10 @@ const pool = databaseUrl ? new Pool({
 
 async function initDb() {
   if (!pool) {
-    console.warn("DATABASE_URL is not configured; using in-memory storage.");
+    if (process.env.NODE_ENV === "production" || process.env.RENDER) {
+      throw new Error("DATABASE_URL is required on the production server.");
+    }
+    console.warn("DATABASE_URL is not configured; using in-memory storage for local development.");
     return;
   }
   await pool.query(`
