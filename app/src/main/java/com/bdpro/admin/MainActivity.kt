@@ -164,11 +164,14 @@ private fun lastSeenLabel(value: String?): String {
     var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("ALL") }
+    var customerFilter by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(search, statusFilter, customerFilter) {
         while (true) {
             refreshing = true
-            ApiClient.listDevices(token)
+            ApiClient.listDevices(token, search, if (statusFilter == "ALL") "" else statusFilter, customerFilter)
                 .onSuccess { devices = it; error = null }
                 .onFailure { error = it.message ?: "Unable to load devices" }
             refreshing = false
@@ -181,6 +184,14 @@ private fun lastSeenLabel(value: String?): String {
             Text("Device List", style = MaterialTheme.typography.headlineSmall)
             Text(if (refreshing) "Updating..." else "Live • 10s", style = MaterialTheme.typography.labelMedium)
         }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(search, { search = it }, label = { Text("Search device / IMEI / model / customer") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("ALL","ONLINE","OFFLINE").forEach { s -> OutlinedButton(onClick = { statusFilter = s }, modifier = Modifier.weight(1f)) { Text(if (statusFilter == s) "✓ $s" else s) } }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(customerFilter, { customerFilter = it }, label = { Text("Customer filter (name / phone)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(8.dp))
         Text("ONLINE means the Device Agent checked in within the last 30 seconds.", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(12.dp))
@@ -238,7 +249,9 @@ private fun lastSeenLabel(value: String?): String {
         Text("Phone: " + device.customerPhone.ifBlank { "—" })
         Spacer(Modifier.height(10.dp))
         Text("Connection: " + connectionLabel(device))
-        Text("Last check-in: " + lastSeenLabel(device.lastSeenAt))
+        Text("Last online: " + lastSeenLabel(device.lastSeenAt))
+        Text("Agent version: " + device.agentVersion.ifBlank { "Unknown" })
+        Text("Agent status: " + device.agentStatus.ifBlank { "UNKNOWN" })
         Text(
             if (connectionLabel(device) == "ONLINE")
                 "Device Agent is currently connected to the backend."
