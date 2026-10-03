@@ -75,4 +75,24 @@ const server=http.createServer(async(req,res)=>{
   send(res,404,{message:"Not found"});
  }catch(e){console.error(e);send(res,500,{message:"Internal server error"})}
 });
-initDb().then(()=>server.listen(PORT,"0.0.0.0",()=>console.log("BD Pro backend listening on "+PORT))).catch(e=>{console.error("Database initialization failed",e);process.exit(1)});
+let expiryTimer=null;
+let httpServer=null;
+
+async function startServer(){
+  await initDb();
+  httpServer=server.listen(PORT,"0.0.0.0",()=>console.log("BD Pro backend listening on "+PORT));
+  await expireStaleCommands();
+  expiryTimer=setInterval(()=>{expireStaleCommands().catch(e=>console.error("Command expiry failed",e))},30000);
+  if(expiryTimer.unref)expiryTimer.unref();
+}
+
+async function shutdown(signal){
+  console.log("BD Pro backend shutting down: "+signal);
+  if(expiryTimer)clearInterval(expiryTimer);
+  if(httpServer)await new Promise(resolve=>httpServer.close(resolve));
+  process.exit(0);
+}
+process.on("SIGTERM",()=>shutdown("SIGTERM"));
+process.on("SIGINT",()=>shutdown("SIGINT"));
+
+startServer().catch(e=>{console.error("Database initialization failed",e);process.exit(1)});
