@@ -49,9 +49,9 @@ fun BDProApp() {
                     "Location" -> RunCommandScreen(session.token() ?: "", selectedDevice, "LOCATION")
                     "Diagnostics" -> RunCommandScreen(session.token() ?: "", selectedDevice, "DIAGNOSTICS")
                     "Customers" -> CustomersScreen(session.token() ?: "")
-                    "EMI / Installment" -> ModuleInfoScreen("EMI / Installment")
-                    "eNACH" -> ModuleInfoScreen("eNACH")
-                    "Remove Device" -> ModuleInfoScreen("Remove Device")
+                    "EMI / Installment" -> EmiScreen(session.token() ?: "")
+                    "eNACH" -> EnachScreen(session.token() ?: "")
+                    "Remove Device" -> RemoveDeviceScreen(session.token() ?: "")
                     "Admin Profile" -> AdminProfileScreen()
                     "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
                     "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
@@ -382,6 +382,42 @@ fun BDProApp() {
     }
 }
 
-@Composable private fun ModuleInfoScreen(title: String) { Column(Modifier.fillMaxSize().padding(16.dp)) { Text(title, style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(16.dp)); Text("This module is connected to the live system; no demo data is shown.") } }
-@Composable private fun CustomersScreen(token: String) { var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }; var error by remember { mutableStateOf<String?>(null) }; LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message } }; Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Customers", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }; LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(devices) { d -> ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(d.customerName.ifBlank { "Customer not set" }, style = MaterialTheme.typography.titleMedium); Text("Phone: " + d.customerPhone.ifBlank { "—" }); Text("Device: " + d.deviceId); Text("Status: " + d.status) } } } } } }
+@Composable private fun CustomersScreen(token: String) {
+ var customers by remember{mutableStateOf<List<CustomerDto>>(emptyList())};var name by remember{mutableStateOf("")};var phone by remember{mutableStateOf("")};var address by remember{mutableStateOf("")};var msg by remember{mutableStateOf<String?>(null)}
+ fun load(){Thread{val r=ApiClient.listCustomers(token);Handler(Looper.getMainLooper()).post{r.onSuccess{customers=it}.onFailure{msg=it.message}}}.start()}
+ LaunchedEffect(Unit){load()}
+ Column(Modifier.fillMaxSize().padding(16.dp)){Text("Customers",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(10.dp))
+  OutlinedTextField(name,{name=it},label={Text("Customer Name")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(6.dp))
+  OutlinedTextField(phone,{phone=it},label={Text("Phone")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(6.dp))
+  OutlinedTextField(address,{address=it},label={Text("Address")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(8.dp))
+  Button(enabled=name.isNotBlank()&&phone.isNotBlank(),onClick={Thread{val r=ApiClient.addCustomer(token,name,phone,address);Handler(Looper.getMainLooper()).post{r.onSuccess{msg="Customer saved";name="";phone="";address="";load()}.onFailure{msg=it.message}}}.start()},modifier=Modifier.fillMaxWidth()){Text("ADD CUSTOMER")};msg?.let{Text(it,Modifier.padding(vertical=8.dp))}
+  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(customers){x->ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(x.name,style=MaterialTheme.typography.titleMedium);Text("Phone: "+x.phone);Text("Address: "+x.address.ifBlank{"—"})}}}}
+ }
+}
+@Composable private fun EmiScreen(token:String){
+ var customers by remember{mutableStateOf<List<CustomerDto>>(emptyList())};var devices by remember{mutableStateOf<List<DeviceDto>>(emptyList())};var agreements by remember{mutableStateOf<List<AgreementDto>>(emptyList())};var customerId by remember{mutableStateOf("")};var deviceId by remember{mutableStateOf("")};var total by remember{mutableStateOf("")};var down by remember{mutableStateOf("0")};var installment by remember{mutableStateOf("")};var count by remember{mutableStateOf("")};var due by remember{mutableStateOf("")};var msg by remember{mutableStateOf<String?>(null)}
+ fun load(){Thread{val a=ApiClient.listCustomers(token);val d=ApiClient.listDevices(token);val g=ApiClient.listAgreements(token);Handler(Looper.getMainLooper()).post{a.onSuccess{customers=it};d.onSuccess{devices=it};g.onSuccess{agreements=it}}}.start()}
+ LaunchedEffect(Unit){load()}
+ Column(Modifier.fillMaxSize().padding(16.dp)){Text("EMI / Installment",style=MaterialTheme.typography.headlineSmall);Spacer(Modifier.height(8.dp))
+  Text("Customer ID: $customerId");LazyColumn(Modifier.heightIn(max=110.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){items(customers){x->OutlinedButton({customerId=x.id},Modifier.fillMaxWidth()){Text(x.name+" • "+x.phone+if(customerId==x.id)" ✓" else "")}}}
+  Text("Device ID: $deviceId");LazyColumn(Modifier.heightIn(max=110.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){items(devices){x->OutlinedButton({deviceId=x.id},Modifier.fillMaxWidth()){Text(x.deviceId+" • "+x.model+if(deviceId==x.id)" ✓" else "")}}}
+  OutlinedTextField(total,{total=it},label={Text("Total Amount")},modifier=Modifier.fillMaxWidth());OutlinedTextField(down,{down=it},label={Text("Down Payment")},modifier=Modifier.fillMaxWidth());OutlinedTextField(installment,{installment=it},label={Text("Installment Amount")},modifier=Modifier.fillMaxWidth());OutlinedTextField(count,{count=it},label={Text("Number of Installments")},modifier=Modifier.fillMaxWidth());OutlinedTextField(due,{due=it},label={Text("Next Due Date (YYYY-MM-DD)")},modifier=Modifier.fillMaxWidth())
+  Button(enabled=customerId.isNotBlank()&&deviceId.isNotBlank()&&total.toDoubleOrNull()!=null&&installment.toDoubleOrNull()!=null&&count.toIntOrNull()!=null,onClick={Thread{val r=ApiClient.addAgreement(token,customerId,deviceId,total.toDouble(),down.toDoubleOrNull()?:0.0,installment.toDouble(),count.toInt(),due);Handler(Looper.getMainLooper()).post{r.onSuccess{msg="Agreement created";load()}.onFailure{msg=it.message}}}.start()},modifier=Modifier.fillMaxWidth()){Text("CREATE AGREEMENT")};msg?.let{Text(it,Modifier.padding(8.dp))}
+  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(agreements){a->ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text("Agreement "+a.id);Text("Remaining: "+a.remainingAmount);Text("Paid: "+a.paidInstallments+" / "+a.numberOfInstallments);Text("Next due: "+a.nextDueDate);Button(enabled=a.remainingAmount>0,onClick={Thread{val r=ApiClient.payInstallment(token,a.id);Handler(Looper.getMainLooper()).post{r.onSuccess{msg="Installment marked paid";load()}.onFailure{msg=it.message}}}.start()}){Text("MARK INSTALLMENT PAID")}}}}}
+ }
+}
+@Composable private fun EnachScreen(token:String){
+ var customers by remember{mutableStateOf<List<CustomerDto>>(emptyList())};var agreements by remember{mutableStateOf<List<AgreementDto>>(emptyList())};var records by remember{mutableStateOf<List<EnachDto>>(emptyList())};var cid by remember{mutableStateOf("")};var aid by remember{mutableStateOf("")};var ref by remember{mutableStateOf("")};var msg by remember{mutableStateOf<String?>(null)}
+ fun load(){Thread{val c=ApiClient.listCustomers(token);val a=ApiClient.listAgreements(token);val e=ApiClient.listEnach(token);Handler(Looper.getMainLooper()).post{c.onSuccess{customers=it};a.onSuccess{agreements=it};e.onSuccess{records=it}}}.start()};LaunchedEffect(Unit){load()}
+ Column(Modifier.fillMaxSize().padding(16.dp)){Text("eNACH",style=MaterialTheme.typography.headlineSmall);Text("Customer: $cid");LazyColumn(Modifier.heightIn(max=100.dp)){items(customers){x->OutlinedButton({cid=x.id},Modifier.fillMaxWidth()){Text(x.name+if(cid==x.id)" ✓" else "")}}};Text("Agreement: $aid");LazyColumn(Modifier.heightIn(max=100.dp)){items(agreements){x->OutlinedButton({aid=x.id},Modifier.fillMaxWidth()){Text(x.id+" • "+x.remainingAmount)}}};OutlinedTextField(ref,{ref=it},label={Text("Mandate Reference")},modifier=Modifier.fillMaxWidth());Button(enabled=cid.isNotBlank()&&aid.isNotBlank()&&ref.isNotBlank(),onClick={Thread{val r=ApiClient.addEnach(token,cid,aid,ref);Handler(Looper.getMainLooper()).post{r.onSuccess{msg="eNACH created";load()}.onFailure{msg=it.message}}}.start()},modifier=Modifier.fillMaxWidth()){Text("CREATE eNACH")};msg?.let{Text(it,Modifier.padding(8.dp))}
+  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(records){e->ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text("Mandate: "+e.mandateRef);Text("Status: "+e.status);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf("ACTIVE","CANCELLED","FAILED").forEach{s->OutlinedButton({Thread{val r=ApiClient.updateEnach(token,e.id,s);Handler(Looper.getMainLooper()).post{r.onSuccess{msg="Status updated";load()}.onFailure{msg=it.message}}}.start()}){Text(s)}}}}}}}
+ }
+}
+@Composable private fun RemoveDeviceScreen(token:String){
+ var devices by remember{mutableStateOf<List<DeviceDto>>(emptyList())};var msg by remember{mutableStateOf<String?>(null)};var busy by remember{mutableStateOf(false)}
+ fun load(){Thread{val r=ApiClient.listDevices(token);Handler(Looper.getMainLooper()).post{r.onSuccess{devices=it}.onFailure{msg=it.message}}}.start()};LaunchedEffect(Unit){load()}
+ Column(Modifier.fillMaxSize().padding(16.dp)){Text("Remove Device",style=MaterialTheme.typography.headlineSmall);Text("This permanently removes the device record and its queued commands.",style=MaterialTheme.typography.bodySmall);Spacer(Modifier.height(10.dp));msg?.let{Text(it)}
+  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(devices){d->ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(d.deviceId,style=MaterialTheme.typography.titleMedium);Text(d.model);Text("Status: "+d.status);Button(enabled=!busy,onClick={busy=true;Thread{val r=ApiClient.deleteDevice(token,d.id);Handler(Looper.getMainLooper()).post{busy=false;r.onSuccess{msg="Device removed";load()}.onFailure{msg=it.message}}}.start()},colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.error),modifier=Modifier.fillMaxWidth()){Text("REMOVE DEVICE")}}}}}
+ }
+}
 @Composable private fun AdminProfileScreen() { Column(Modifier.fillMaxSize().padding(16.dp)) { Text("Admin Profile", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); Text("Role: ADMIN"); Text("Backend: https://bd-pro-backend.onrender.com"); Text("Live server authentication enabled") } }
