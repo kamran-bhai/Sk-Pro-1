@@ -45,15 +45,15 @@ fun BDProApp() {
                     "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Device List" }
                     "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
                     "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
-                    "Run Command" -> RunCommandScreen(session.token() ?: \"\", selectedDevice)
-                    \"Location\" -> RunCommandScreen(session.token() ?: \"\", selectedDevice, \"LOCATION\")
-                    \"Diagnostics\" -> RunCommandScreen(session.token() ?: \"\", selectedDevice, \"DIAGNOSTICS\")
-                    \"Customers\" -> CustomersScreen(session.token() ?: \"\")
-                    \"EMI / Installment\" -> ModuleInfoScreen(\"EMI / Installment\")
-                    \"eNACH\" -> ModuleInfoScreen(\"eNACH\")
-                    \"Remove Device\" -> ModuleInfoScreen(\"Remove Device\")
-                    \"Admin Profile\" -> AdminProfileScreen()
-                    \"Auto Lock\" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
+                    "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
+                    "Location" -> RunCommandScreen(session.token() ?: "", selectedDevice, "LOCATION")
+                    "Diagnostics" -> RunCommandScreen(session.token() ?: "", selectedDevice, "DIAGNOSTICS")
+                    "Customers" -> CustomersScreen(session.token() ?: "")
+                    "EMI / Installment" -> ModuleInfoScreen("EMI / Installment")
+                    "eNACH" -> ModuleInfoScreen("eNACH")
+                    "Remove Device" -> ModuleInfoScreen("Remove Device")
+                    "Admin Profile" -> AdminProfileScreen()
+                    "Auto Lock" -> AutoLockScreen(session.token() ?: "", selectedDevice) { selectedDevice = it }
                     "Anti Theft" -> AntiTheftScreen(session.token() ?: "", selectedDevice) { d -> selectedDevice = d }
                     else -> DashboardScreen { selected = it }
                 }
