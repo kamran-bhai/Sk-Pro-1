@@ -21,10 +21,15 @@ import java.net.URL
 
 class AgentService : Service() {
     private var running = false
+    private var worker: Thread? = null
+    private var consecutiveFailures = 0
     private val defaultAutoLockTimeoutMs = 5 * 60 * 1000L
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundNotification()
-        if (!running) { running = true; Thread { loop() }.start() }
+        if (!running) {
+            running = true
+            worker = Thread { loop() }.also { it.start() }
+        }
         return START_STICKY
     }
     private fun startForegroundNotification() {
@@ -36,11 +41,30 @@ class AgentService : Service() {
     private fun loop() {
         val p = AgentPrefs(this)
         while (running && p.deviceId.isNotBlank() && p.controlKey.isNotBlank()) {
-            try { enforcePolicies(p); poll(p) } catch (_: Exception) {}
-            Thread.sleep(10000)
+            try {
+                enforcePolicies(p)
+                poll(p)
+                consecutiveFailures = 0
+                updateNotification("Connected • checking every 10s")
+            } catch (_: Exception) {
+                consecutiveFailures++
+                updateNotification("Connection retry • attempt $consecutiveFailures")
+            }
+            try { Thread.sleep(if (consecutiveFailures == 0) 10000L else minOf(30000L, 5000L * consecutiveFailures)) } catch (_: InterruptedException) { break }
         }
         stopSelf()
     }
+    private fun updateNotification(text: String) {
+        val nm = getSystemService(NotificationManager::class.java)
+        val n = NotificationCompat.Builder(this, "bdpro_agent")
+            .setContentTitle("BD Pro Agent")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setOngoing(true)
+            .build()
+        nm.notify(1001, n)
+    }
+
     private fun poll(p: AgentPrefs) {
         val c = (URL(p.backendUrl + "/api/v1/agent/devices/" + p.deviceId + "/commands").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"; connectTimeout = 15000; readTimeout = 15000; setRequestProperty("X-Device-Key", p.controlKey); setRequestProperty("X-Agent-Version", BuildConfig.VERSION_NAME); setRequestProperty("X-Agent-Status", "RUNNING")
@@ -48,7 +72,7 @@ class AgentService : Service() {
         val code = c.responseCode
         val body = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
         c.disconnect()
-        if (code !in 200..299) return
+        if (code !in 200..299) throw IllegalStateException("Agent poll failed (HTTP $code)")
         val a = JSONObject(body).optJSONArray("commands") ?: return
         for (i in 0 until a.length()) execute(p, a.getJSONObject(i))
     }
@@ -177,5 +201,12 @@ class AgentService : Service() {
         }
     }
     private fun component() = android.content.ComponentName(this, DeviceAdminReceiver::class.java)
+    override fun onDestroy() {
+        running = false
+        worker?.interrupt()
+        worker = null
+        super.onDestroy()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 }
