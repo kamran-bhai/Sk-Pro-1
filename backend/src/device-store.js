@@ -35,6 +35,11 @@ async function listDevices(){
   `);
   return rows.map(r => ({...rowToDevice(r), status: r.live_status}));
 }
+async function getDeviceByDeviceId(deviceId){
+  if(!pool)return Array.from(devices.values()).find(d=>d.deviceId===deviceId)||null;
+  const {rows}=await pool.query("SELECT * FROM devices WHERE device_id=$1",[deviceId]);
+  return rows[0] ? rowToDevice(rows[0]) : null;
+}
 async function getDevice(id){
   if(!pool)return devices.get(id)||null;
   const {rows}=await pool.query(`
@@ -96,4 +101,4 @@ async function deleteDevice(id){
   if(!pool){devices.delete(id);for(const [cid,c] of commands)if(c.deviceId===id)commands.delete(cid);return}
   await pool.query("DELETE FROM devices WHERE id=$1",[id]);
 }
-module.exports={devices,commands,normalizeDevice,listDevices,getDevice,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice};
+module.exports={devices,commands,normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice};
