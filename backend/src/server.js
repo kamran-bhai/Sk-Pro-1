@@ -1,6 +1,6 @@
 const http=require("http"),crypto=require("crypto");
 const {initDb}=require("./db");
-const {normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
+const {normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,retryCommand,deleteDevice}=require("./device-store");
 const {listCustomers,saveCustomer,listAgreements,saveAgreement,markInstallmentPaid,listEnach,saveEnach,updateEnach}=require("./business-store");
 const PORT=Number(process.env.PORT||10000),JWT_SECRET=process.env.JWT_SECRET||"bd-pro-change-this-secret";
 const ADMIN_EMAIL=(process.env.ADMIN_EMAIL||"admin@bdpro.local").toLowerCase(),ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"ChangeMe123!";
@@ -50,6 +50,17 @@ const server=http.createServer(async(req,res)=>{
    const queued=await queueCommand(d.id,command,payload,dedupeKey);
    return send(res,202,{command:queued,deduplicated:Boolean(queued.deduplicated)});
  });
+  const retry=req.url.match(/^\/api\/v1\/commands\/([^/]+)\/retry$/);
+  if(retry&&req.method==="POST"){
+    try{
+      const command=await retryCommand(retry[1]);
+      if(!command)return send(res,404,{message:"Command not found"});
+      return send(res,202,{command});
+    }catch(e){
+      if(e.message==="Only FAILED commands can be retried")return send(res,409,{message:e.message});
+      throw e;
+    }
+  }
   const qs=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
   if(qs&&req.method==="GET"){const command=await getCommand(qs[1]);if(!command)return send(res,404,{message:"Command not found"});return send(res,200,{command})}
   if(req.method==="GET"&&req.url.startsWith("/api/v1/commands")){
