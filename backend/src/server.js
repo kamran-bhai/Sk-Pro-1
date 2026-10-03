@@ -12,6 +12,10 @@ function adminAuth(req,res){const h=req.headers.authorization||"";if(!h.startsWi
 function deviceAuth(req,res,d){if(!d||req.headers["x-device-key"]!==d.controlKey){send(res,401,{message:"Invalid device credentials"});return false}return true}
 function agentMeta(req){return {version:String(req.headers["x-agent-version"]||"").trim(),status:String(req.headers["x-agent-status"]||"RUNNING").trim().toUpperCase()}}
 function readBody(req,done){let raw="";req.on("data",c=>raw+=c);req.on("end",()=>{try{done(JSON.parse(raw||"{}"))}catch{done({})}})}
+function commandDedupeKey(deviceId,command,payload){
+ const bucket=Math.floor(Date.now()/10000);
+ return crypto.createHash("sha256").update(JSON.stringify({deviceId,command,payload,bucket})).digest("hex");
+}
 
 const server=http.createServer(async(req,res)=>{
  try{
@@ -37,7 +41,16 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="GET"&&req.url.startsWith("/api/v1/devices")){const u=new URL(req.url,"http://localhost");const ds=await listDevices({search:u.searchParams.get("search")||"",status:u.searchParams.get("status")||"",customer:u.searchParams.get("customer")||""});return send(res,200,{devices:ds.map(({controlKey,...d})=>d)})}
   if(req.method==="POST"&&req.url==="/api/v1/devices")return readBody(req,async b=>{if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});try{const d=await saveDevice(normalizeDevice(b));send(res,201,{device:d,enrollment:{deviceId:d.deviceId,controlKey:d.controlKey}})}catch(e){if(e.code==="23505")send(res,409,{message:"Device ID or control key already exists"});else throw e}});
   const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
-  if(cm&&req.method==="POST")return readBody(req,async b=>{const d=await getDevice(cm[1]);if(!d)return send(res,404,{message:"Device not found"});const allowed=["LOCK","UNLOCK","LOCATION","DIAGNOSTICS","AUTOLOCK_ON","AUTOLOCK_OFF","ANTI_THEFT_ON","ANTI_THEFT_OFF"],command=String(b.command||"").trim().toUpperCase();if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});send(res,202,{command:await queueCommand(d.id,command,b.payload||{})})});
+  if(cm&&req.method==="POST")return readBody(req,async b=>{
+   const d=await getDevice(cm[1]);
+   if(!d)return send(res,404,{message:"Device not found"});
+   const allowed=["LOCK","UNLOCK","LOCATION","DIAGNOSTICS","AUTOLOCK_ON","AUTOLOCK_OFF","ANTI_THEFT_ON","ANTI_THEFT_OFF"],command=String(b.command||"").trim().toUpperCase();
+   if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});
+   const payload=b.payload||{},dedupeKey=String(req.headers["idempotency-key"]||"").trim()||commandDedupeKey(d.id,command,payload);
+   const queued=await queueCommand(d.id,command,payload,dedupeKey);
+   const duplicate=queued.status!=="QUEUED" || queued.createdAt!==queued.updatedAt || queued.id!=="";
+   return send(res,202,{command:queued,deduplicated:queued.id!==undefined && queued.createdAt!==queued.updatedAt ? true : false});
+ });
   const qs=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
   if(qs&&req.method==="GET"){const command=await getCommand(qs[1]);if(!command)return send(res,404,{message:"Command not found"});return send(res,200,{command})}
   if(req.method==="GET"&&req.url.startsWith("/api/v1/commands")){
