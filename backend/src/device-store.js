@@ -15,14 +15,20 @@ function normalizeDevice(input) {
     status: input.status || "ACTIVE",
     controlKey: input.controlKey || crypto.randomBytes(24).toString("hex"),
     createdAt: input.createdAt || new Date().toISOString(),
-    lastSeenAt: input.lastSeenAt || null
+    lastSeenAt: input.lastSeenAt || null,
+    agentVersion: String(input.agentVersion || "").trim(),
+    agentStatus: String(input.agentStatus || "UNKNOWN").trim().toUpperCase()
   };
 }
-function rowToDevice(r){return r?{id:r.id,deviceId:r.device_id,imei:r.imei,model:r.model,customerName:r.customer_name,customerPhone:r.customer_phone,status:r.status,controlKey:r.control_key,createdAt:new Date(r.created_at).toISOString(),lastSeenAt:r.last_seen_at?new Date(r.last_seen_at).toISOString():null}:null}
+function rowToDevice(r){return r?{id:r.id,deviceId:r.device_id,imei:r.imei,model:r.model,customerName:r.customer_name,customerPhone:r.customer_phone,status:r.status,controlKey:r.control_key,createdAt:new Date(r.created_at).toISOString(),lastSeenAt:r.last_seen_at?new Date(r.last_seen_at).toISOString():null,agentVersion:r.agent_version||"",agentStatus:r.agent_status||"UNKNOWN"}:null}
 function rowToCommand(r){return r?{id:r.id,deviceId:r.device_id,command:r.command,payload:r.payload||{},status:r.status,createdAt:new Date(r.created_at).toISOString(),updatedAt:new Date(r.updated_at).toISOString(),result:r.result??null}:null}
 
-async function listDevices(){
-  if(!pool)return Array.from(devices.values());
+async function listDevices(filters={}){
+  if(!pool){
+    const q=String(filters.search||"").trim().toLowerCase(), status=String(filters.status||"").toUpperCase(), customer=String(filters.customer||"").trim().toLowerCase();
+    return Array.from(devices.values()).filter(d=>(!q||[d.deviceId,d.imei,d.model,d.customerName,d.customerPhone].some(v=>String(v).toLowerCase().includes(q)))&&(!customer||d.customerName.toLowerCase().includes(customer)||d.customerPhone.toLowerCase().includes(customer))&&(!status||d.status.toUpperCase()===status));
+  }
+  return Array.from(devices.values());
   const {rows}=await pool.query(`
     SELECT *,
       CASE
@@ -31,9 +37,12 @@ async function listDevices(){
         ELSE status
       END AS live_status
     FROM devices
+    WHERE ($1='' OR device_id ILIKE '%'||$1||'%' OR imei ILIKE '%'||$1||'%' OR model ILIKE '%'||$1||'%' OR customer_name ILIKE '%'||$1||'%' OR customer_phone ILIKE '%'||$1||'%')
+      AND ($2='' OR customer_name ILIKE '%'||$2||'%' OR customer_phone ILIKE '%'||$2||'%')
     ORDER BY created_at DESC
-  `);
-  return rows.map(r => ({...rowToDevice(r), status: r.live_status}));
+  `,[String(filters.search||"").trim(),String(filters.customer||"").trim()]);
+  const status=String(filters.status||"").toUpperCase();
+  return rows.map(r => ({...rowToDevice(r), status: r.live_status})).filter(d=>!status||d.status===status);
 }
 async function getDeviceByDeviceId(deviceId){
   if(!pool)return Array.from(devices.values()).find(d=>d.deviceId===deviceId)||null;
@@ -60,10 +69,10 @@ async function saveDevice(d){
     [d.id,d.deviceId,d.imei,d.model,d.customerName,d.customerPhone,d.status,d.controlKey,d.createdAt,d.lastSeenAt]);
   return rowToDevice(rows[0]);
 }
-async function markDeviceOnline(d){
-  d.status="ONLINE"; d.lastSeenAt=new Date().toISOString();
+async function markDeviceOnline(d,agentVersion="",agentStatus="RUNNING"){
+  d.status="ONLINE"; d.lastSeenAt=new Date().toISOString(); d.agentVersion=String(agentVersion||d.agentVersion||""); d.agentStatus=String(agentStatus||"RUNNING").toUpperCase();
   if(!pool){devices.set(d.id,d);return d}
-  const {rows}=await pool.query("UPDATE devices SET status='ONLINE',last_seen_at=$2 WHERE id=$1 RETURNING *",[d.id,d.lastSeenAt]);
+  const {rows}=await pool.query("UPDATE devices SET status='ONLINE',last_seen_at=$2,agent_version=$3,agent_status=$4 WHERE id=$1 RETURNING *",[d.id,d.lastSeenAt,d.agentVersion,d.agentStatus]);
   return rowToDevice(rows[0])||d;
 }
 async function queueCommand(deviceId,command,payload={}){
