@@ -17,8 +17,11 @@ async function initDb() {
       id TEXT PRIMARY KEY, device_id TEXT UNIQUE NOT NULL, imei TEXT NOT NULL,
       model TEXT NOT NULL DEFAULT '', customer_name TEXT NOT NULL DEFAULT '',
       customer_phone TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'ACTIVE',
-      control_key TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ NOT NULL, last_seen_at TIMESTAMPTZ
+      control_key TEXT UNIQUE NOT NULL, created_at TIMESTAMPTZ NOT NULL, last_seen_at TIMESTAMPTZ,
+      agent_version TEXT NOT NULL DEFAULT '', agent_status TEXT NOT NULL DEFAULT 'UNKNOWN'
     );
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS agent_version TEXT NOT NULL DEFAULT '';
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS agent_status TEXT NOT NULL DEFAULT 'UNKNOWN';
     CREATE TABLE IF NOT EXISTS commands (
       id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
       command TEXT NOT NULL, payload JSONB NOT NULL DEFAULT '{}'::jsonb, status TEXT NOT NULL,
