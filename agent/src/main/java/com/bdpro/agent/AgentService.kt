@@ -45,8 +45,10 @@ class AgentService : Service() {
         val c = (URL(p.backendUrl + "/api/v1/agent/devices/" + p.deviceId + "/commands").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"; connectTimeout = 15000; readTimeout = 15000; setRequestProperty("X-Device-Key", p.controlKey)
         }
-        val body = (if (c.responseCode in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (c.responseCode !in 200..299) return
+        val code = c.responseCode
+        val body = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+        c.disconnect()
+        if (code !in 200..299) return
         val a = JSONObject(body).optJSONArray("commands") ?: return
         for (i in 0 until a.length()) execute(p, a.getJSONObject(i))
     }
@@ -165,7 +167,14 @@ class AgentService : Service() {
         val c = (URL(p.backendUrl + "/api/v1/agent/commands/" + id + "/ack").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; connectTimeout = 15000; readTimeout = 15000; doOutput = true; setRequestProperty("Content-Type", "application/json"); setRequestProperty("X-Device-Key", p.controlKey)
         }
-        c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }; c.inputStream.close()
+        try {
+            c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = c.responseCode
+            val stream = if (code in 200..299) c.inputStream else c.errorStream
+            stream?.close()
+        } finally {
+            c.disconnect()
+        }
     }
     private fun component() = android.content.ComponentName(this, DeviceAdminReceiver::class.java)
     override fun onBind(intent: Intent?): IBinder? = null
