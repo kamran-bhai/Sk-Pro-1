@@ -10,6 +10,9 @@ import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     private lateinit var prefs: AgentPrefs
@@ -74,74 +77,143 @@ class MainActivity : ComponentActivity() {
                 val base = backend.text.toString().trimEnd('/')
                 val did = device.text.toString().trim()
                 val ck = key.text.toString().trim()
-                if (base.isBlank() || did.isBlank() || ck.isBlank()) {
-                    Toast.makeText(this@MainActivity, "Enter Backend URL, Device ID and Control Key", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
+                if (!validateInputs(base, did, ck)) return@setOnClickListener
+
                 Thread {
-                    try {
-                        val c = (java.net.URL(base + "/api/v1/agent/enroll").openConnection() as java.net.HttpURLConnection).apply {
-                            requestMethod = "POST"
-                            connectTimeout = 10000
-                            readTimeout = 10000
-                            setRequestProperty("X-Device-Key", ck)
-                            doOutput = true
+                    val result = enrollDevice(base, did, ck)
+                    runOnUiThread {
+                        val message = if (result.first in 200..299) {
+                            "Connection OK • Device enrolled"
+                        } else {
+                            "Connection failed • " + result.second
                         }
-                        c.outputStream.use { it.write(org.json.JSONObject().put("deviceId", did).toString().toByteArray()) }
-                        val code = c.responseCode
-                        c.disconnect()
-                        runOnUiThread {
-                            Toast.makeText(this@MainActivity, if (code in 200..299) "Connection OK • Device enrolled" else "Connection failed • HTTP " + code, Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    }
+                }.start()
+            }
+        })
+
+        l.addView(Button(this).apply {
+            text = "SAVE & START AGENT"
+            setOnClickListener {
+                val base = backend.text.toString().trimEnd('/')
+                val did = device.text.toString().trim()
+                val ck = key.text.toString().trim()
+
+                if (!validateInputs(base, did, ck)) return@setOnClickListener
+
+                Toast.makeText(
+                    this@MainActivity,
+                    "Verifying device enrollment…",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                Thread {
+                    val result = enrollDevice(base, did, ck)
+                    runOnUiThread {
+                        if (result.first !in 200..299) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Agent not started • " + result.second,
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@runOnUiThread
                         }
-                    } catch (e: Exception) {
-                        runOnUiThread {
-                            Toast.makeText(this@MainActivity, "Connection failed: " + (e.message ?: "network error"), Toast.LENGTH_LONG).show()
+
+                        prefs.backendUrl = base
+                        prefs.deviceId = did
+                        prefs.controlKey = ck
+
+                        when {
+                            !hasLocationPermission() -> {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Device verified. Allow location to continue.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                requestLocationPermission()
+                            }
+                            !hasPhoneStatePermission() -> {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Device verified. Allow Phone State for Anti-Theft.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                requestPhoneStatePermission()
+                            }
+                            else -> startAgent()
                         }
                     }
                 }.start()
             }
         })
-        
-        l.addView(Button(this).apply {
-            text = "SAVE & START AGENT"
-            setOnClickListener {
-                prefs.backendUrl = backend.text.toString()
-                prefs.deviceId = device.text.toString()
-                prefs.controlKey = key.text.toString()
-
-                when {
-                    !hasLocationPermission() -> {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Allow location first",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        requestLocationPermission()
-                    }
-                    !hasPhoneStatePermission() -> {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Allow Phone State for Anti-Theft",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        requestPhoneStatePermission()
-                    }
-                    else -> {
-                        ContextCompat.startForegroundService(
-                            this@MainActivity,
-                            Intent(this@MainActivity, AgentService::class.java)
-                        )
-                        Toast.makeText(
-                            this@MainActivity,
-                            "BD Pro Agent started",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            }
-        })
 
         setContentView(l)
+    }
+
+    private fun validateInputs(base: String, did: String, ck: String): Boolean {
+        if (base.isBlank() || did.isBlank() || ck.isBlank()) {
+            Toast.makeText(
+                this,
+                "Enter Backend URL, Device ID and Control Key",
+                Toast.LENGTH_LONG
+            ).show()
+            return false
+        }
+        return true
+    }
+
+    private fun enrollDevice(base: String, deviceId: String, controlKey: String): Pair<Int, String> {
+        return try {
+            val c = (URL(base + "/api/v1/agent/enroll").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("X-Device-Key", controlKey)
+                doOutput = true
+            }
+
+            c.outputStream.use {
+                it.write(JSONObject().put("deviceId", deviceId).toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val code = c.responseCode
+            val stream = if (code in 200..299) c.inputStream else c.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            c.disconnect()
+
+            val detail = try {
+                JSONObject(body).optString("error").ifBlank {
+                    JSONObject(body).optString("message")
+                }
+            } catch (_: Exception) {
+                ""
+            }
+
+            code to when {
+                code == 404 -> "Device ID is not registered"
+                code == 401 -> "Invalid Device ID or Control Key"
+                code in 200..299 -> "Device enrolled"
+                detail.isNotBlank() -> detail
+                else -> "HTTP $code"
+            }
+        } catch (e: Exception) {
+            -1 to (e.message ?: "network error")
+        }
+    }
+
+    private fun startAgent() {
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, AgentService::class.java)
+        )
+        Toast.makeText(
+            this,
+            "BD Pro Agent started",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun hasLocationPermission(): Boolean =
