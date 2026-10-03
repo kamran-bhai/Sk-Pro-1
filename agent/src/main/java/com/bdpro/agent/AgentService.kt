@@ -28,6 +28,7 @@ class AgentService : Service() {
         startForegroundNotification()
         if (!running) {
             running = true
+            consecutiveFailures = 0
             worker = Thread { loop() }.also { it.start() }
         }
         return START_STICKY
@@ -201,6 +202,19 @@ class AgentService : Service() {
         }
     }
     private fun component() = android.content.ComponentName(this, DeviceAdminReceiver::class.java)
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Best-effort recovery if the app task is removed while Android keeps the service eligible.
+        val p = AgentPrefs(this)
+        if (p.deviceId.isNotBlank() && p.controlKey.isNotBlank()) {
+            try {
+                ContextCompat.startForegroundService(this, Intent(this, AgentService::class.java))
+            } catch (_: Exception) {
+                // Android may reject a restart from this lifecycle callback.
+            }
+        }
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         running = false
         worker?.interrupt()
