@@ -25,9 +25,12 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS commands (
       id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
       command TEXT NOT NULL, payload JSONB NOT NULL DEFAULT '{}'::jsonb, status TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL, result TEXT
+      created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL, result TEXT,
+      dedupe_key TEXT
     );
+    ALTER TABLE commands ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
     CREATE INDEX IF NOT EXISTS idx_commands_queue ON commands (device_id, status, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_commands_dedupe_key ON commands (dedupe_key) WHERE dedupe_key IS NOT NULL;
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL
     );
