@@ -1,6 +1,7 @@
 const http=require("http"),crypto=require("crypto");
 const {initDb}=require("./db");
 const {normalizeDevice,listDevices,getDevice,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
+const {listCustomers,saveCustomer,listAgreements,saveAgreement,markInstallmentPaid,listEnach,saveEnach,updateEnach}=require("./business-store");
 const PORT=Number(process.env.PORT||10000),JWT_SECRET=process.env.JWT_SECRET||"bd-pro-change-this-secret";
 const ADMIN_EMAIL=(process.env.ADMIN_EMAIL||"admin@bdpro.local").toLowerCase(),ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"ChangeMe123!";
 const b64=v=>Buffer.from(v).toString("base64url");
@@ -22,6 +23,16 @@ const server=http.createServer(async(req,res)=>{
   const ack=req.url.match(/^\/api\/v1\/agent\/commands\/([^/]+)\/ack$/);
   if(ack&&req.method==="POST"){const c=await getCommand(ack[1]);if(!c)return send(res,404,{message:"Command not found"});const d=await getDevice(c.deviceId);if(!deviceAuth(req,res,d))return;return readBody(req,async b=>{const status=String(b.status||"FAILED").toUpperCase();if(!["SUCCESS","FAILED"].includes(status))return send(res,400,{message:"Status must be SUCCESS or FAILED"});send(res,200,{command:await updateCommand(c.id,status,b.result??null)})})}
   if(!adminAuth(req,res))return;
+  if(req.method==="GET"&&req.url==="/api/v1/customers")return send(res,200,{customers:await listCustomers()});
+  if(req.method==="POST"&&req.url==="/api/v1/customers")return readBody(req,async b=>{try{send(res,201,{customer:await saveCustomer(b)})}catch(e){send(res,400,{message:e.message})}});
+  if(req.method==="GET"&&req.url==="/api/v1/agreements")return send(res,200,{agreements:await listAgreements()});
+  if(req.method==="POST"&&req.url==="/api/v1/agreements")return readBody(req,async b=>{try{send(res,201,{agreement:await saveAgreement(b)})}catch(e){send(res,400,{message:e.message})}});
+  const pay=req.url.match(/^\\/api\\/v1\\/agreements\\/([^/]+)\\/pay$/);
+  if(pay&&req.method==="POST"){const a=await markInstallmentPaid(pay[1]);if(!a)return send(res,404,{message:"Agreement not found"});return send(res,200,{agreement:a})}
+  if(req.method==="GET"&&req.url==="/api/v1/enach")return send(res,200,{enach:await listEnach()});
+  if(req.method==="POST"&&req.url==="/api/v1/enach")return readBody(req,async b=>{try{send(res,201,{enach:await saveEnach(b)})}catch(e){send(res,400,{message:e.message})}});
+  const nach=req.url.match(/^\\/api\\/v1\\/enach\\/([^/]+)\\/status$/);
+  if(nach&&req.method==="POST")return readBody(req,async b=>{try{const e=await updateEnach(nach[1],String(b.status||"").toUpperCase());if(!e)return send(res,404,{message:"eNACH record not found"});send(res,200,{enach:e})}catch(e){send(res,400,{message:e.message})}});
   if(req.method==="GET"&&req.url==="/api/v1/devices"){const ds=await listDevices();return send(res,200,{devices:ds.map(({controlKey,...d})=>d)})}
   if(req.method==="POST"&&req.url==="/api/v1/devices")return readBody(req,async b=>{if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});try{const d=await saveDevice(normalizeDevice(b));send(res,201,{device:d,enrollment:{deviceId:d.deviceId,controlKey:d.controlKey}})}catch(e){if(e.code==="23505")send(res,409,{message:"Device ID or control key already exists"});else throw e}});
   const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
