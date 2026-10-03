@@ -26,7 +26,7 @@ function rowToCommand(r){return r?{id:r.id,deviceId:r.device_id,command:r.comman
 async function listDevices(filters={}){
   if(!pool){
     const q=String(filters.search||"").trim().toLowerCase(), status=String(filters.status||"").toUpperCase(), customer=String(filters.customer||"").trim().toLowerCase();
-    return Array.from(devices.values()).filter(d=>(!q||[d.deviceId,d.imei,d.model,d.customerName,d.customerPhone].some(v=>String(v).toLowerCase().includes(q)))&&(!customer||d.customerName.toLowerCase().includes(customer)||d.customerPhone.toLowerCase().includes(customer))&&(!status||d.status.toUpperCase()===status));
+    return Array.from(devices.values()).map(d=>{const online=d.lastSeenAt&&Date.now()-Date.parse(d.lastSeenAt)<30000;return {...d,status:online?"ONLINE":(d.lastSeenAt?"OFFLINE":d.status),agentStatus:online?(d.agentStatus||"RUNNING"):(d.lastSeenAt?"OFFLINE":(d.agentStatus||"UNKNOWN"))}}).filter(d=>(!q||[d.deviceId,d.imei,d.model,d.customerName,d.customerPhone].some(v=>String(v).toLowerCase().includes(q)))&&(!customer||d.customerName.toLowerCase().includes(customer)||d.customerPhone.toLowerCase().includes(customer))&&(!status||d.status.toUpperCase()===status));
   }
   const {rows}=await pool.query(`
     SELECT *,
@@ -41,7 +41,7 @@ async function listDevices(filters={}){
     ORDER BY created_at DESC
   `,[String(filters.search||"").trim(),String(filters.customer||"").trim()]);
   const status=String(filters.status||"").toUpperCase();
-  return rows.map(r => ({...rowToDevice(r), status: r.live_status})).filter(d=>!status||d.status===status);
+  return rows.map(r => ({...rowToDevice(r), status: r.live_status, agentStatus: r.live_status === "ONLINE" ? (r.agent_status || "RUNNING") : (r.last_seen_at ? "OFFLINE" : (r.agent_status || "UNKNOWN"))})).filter(d=>!status||d.status===status);
 }
 async function getDeviceByDeviceId(deviceId){
   if(!pool)return Array.from(devices.values()).find(d=>d.deviceId===deviceId)||null;
@@ -59,7 +59,7 @@ async function getDevice(id){
       END AS live_status
     FROM devices WHERE id=$1
   `,[id]);
-  return rows[0] ? {...rowToDevice(rows[0]), status: rows[0].live_status} : null;
+  return rows[0] ? {...rowToDevice(rows[0]), status: rows[0].live_status, agentStatus: rows[0].live_status === "ONLINE" ? (rows[0].agent_status || "RUNNING") : (rows[0].last_seen_at ? "OFFLINE" : (rows[0].agent_status || "UNKNOWN"))} : null;
 }
 async function saveDevice(d){
   if(!pool){devices.set(d.id,d);return d}
