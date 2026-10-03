@@ -5,8 +5,9 @@ const PORT=Number(process.env.PORT||10000),JWT_SECRET=process.env.JWT_SECRET||"b
 const ADMIN_EMAIL=(process.env.ADMIN_EMAIL||"admin@bdpro.local").toLowerCase(),ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"ChangeMe123!";
 const b64=v=>Buffer.from(v).toString("base64url");
 function makeToken(){const h=b64(JSON.stringify({alg:"HS256",typ:"JWT"})),p=b64(JSON.stringify({sub:"admin-1",email:ADMIN_EMAIL,role:"ADMIN",exp:Math.floor(Date.now()/1000)+43200})),s=crypto.createHmac("sha256",JWT_SECRET).update(h+"."+p).digest("base64url");return h+"."+p+"."+s}
+function verifyToken(token){try{const parts=String(token||"").split(".");if(parts.length!==3)return null;const [h,p,s]=parts;const expected=crypto.createHmac("sha256",JWT_SECRET).update(h+"."+p).digest("base64url");if(s.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(s),Buffer.from(expected)))return null;const payload=JSON.parse(Buffer.from(p,"base64url").toString("utf8"));if(payload.exp<=Math.floor(Date.now()/1000)||payload.role!=="ADMIN")return null;return payload}catch{return null}}
 function send(res,status,data){res.writeHead(status,{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization, X-Device-Key","Access-Control-Allow-Methods":"GET, POST, DELETE, OPTIONS"});res.end(JSON.stringify(data))}
-function adminAuth(req,res){const h=req.headers.authorization||"";if(!h.startsWith("Bearer ")){send(res,401,{message:"Missing access token"});return false}return true}
+function adminAuth(req,res){const h=req.headers.authorization||"";if(!h.startsWith("Bearer ")){send(res,401,{message:"Missing access token"});return false}if(!verifyToken(h.slice(7))){send(res,401,{message:"Invalid or expired access token"});return false}return true}
 function deviceAuth(req,res,d){if(!d||req.headers["x-device-key"]!==d.controlKey){send(res,401,{message:"Invalid device credentials"});return false}return true}
 function readBody(req,done){let raw="";req.on("data",c=>raw+=c);req.on("end",()=>{try{done(JSON.parse(raw||"{}"))}catch{done({})}})}
 
