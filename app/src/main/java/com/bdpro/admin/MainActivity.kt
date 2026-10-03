@@ -197,7 +197,8 @@ private fun lastSeenLabel(value: String?): String {
                         Spacer(Modifier.height(6.dp))
                         Text("Device ID: " + d.deviceId)
                         Text("IMEI: " + d.imei)
-                        Text("Customer: " + d.customerName.ifBlank { "—" })                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
+                        Text("Customer: " + d.customerName.ifBlank { "—" })
+                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
                         Spacer(Modifier.height(4.dp))
                         Text("Tap for details", style = MaterialTheme.typography.labelMedium)
                     }
@@ -396,7 +397,8 @@ private fun lastSeenLabel(value: String?): String {
                 }.start()
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("DISABLE ANTI THEFT") }        message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
+        ) { Text("DISABLE ANTI THEFT") }
+        message?.let { Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.primary) }
         Spacer(Modifier.height(12.dp))
         Text(
             "Anti-Theft uses the device agent's SIM subscription baseline. If a change is detected, the agent can lock the device. Android/OEM limitations mean this is not a guaranteed SIM-identity check.",
