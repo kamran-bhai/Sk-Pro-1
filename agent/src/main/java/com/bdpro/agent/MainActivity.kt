@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URI
 
 class MainActivity : ComponentActivity() {
     private lateinit var prefs: AgentPrefs
@@ -160,7 +161,21 @@ class MainActivity : ComponentActivity() {
             ).show()
             return false
         }
-        return true
+        return try {
+            val uri = URI(base)
+            val validHost = uri.host.equals("bd-pro-backend.onrender.com", ignoreCase = true)
+            if (uri.scheme != "https" || !validHost || uri.query != null || uri.fragment != null) {
+                Toast.makeText(
+                    this,
+                    "Backend must be the official BD Pro HTTPS server",
+                    Toast.LENGTH_LONG
+                ).show()
+                false
+            } else true
+        } catch (_: Exception) {
+            Toast.makeText(this, "Invalid Backend URL", Toast.LENGTH_LONG).show()
+            false
+        }
     }
 
     private fun enrollDevice(base: String, deviceId: String, controlKey: String): Pair<Int, String> {
