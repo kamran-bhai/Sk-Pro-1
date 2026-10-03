@@ -23,11 +23,30 @@ function rowToCommand(r){return r?{id:r.id,deviceId:r.device_id,command:r.comman
 
 async function listDevices(){
   if(!pool)return Array.from(devices.values());
-  const {rows}=await pool.query("SELECT * FROM devices ORDER BY created_at DESC"); return rows.map(rowToDevice);
+  const {rows}=await pool.query(`
+    SELECT *,
+      CASE
+        WHEN last_seen_at IS NOT NULL AND last_seen_at >= NOW() - INTERVAL '30 seconds' THEN 'ONLINE'
+        WHEN last_seen_at IS NOT NULL THEN 'OFFLINE'
+        ELSE status
+      END AS live_status
+    FROM devices
+    ORDER BY created_at DESC
+  `);
+  return rows.map(r => ({...rowToDevice(r), status: r.live_status}));
 }
 async function getDevice(id){
   if(!pool)return devices.get(id)||null;
-  const {rows}=await pool.query("SELECT * FROM devices WHERE id=$1",[id]); return rowToDevice(rows[0]);
+  const {rows}=await pool.query(`
+    SELECT *,
+      CASE
+        WHEN last_seen_at IS NOT NULL AND last_seen_at >= NOW() - INTERVAL '30 seconds' THEN 'ONLINE'
+        WHEN last_seen_at IS NOT NULL THEN 'OFFLINE'
+        ELSE status
+      END AS live_status
+    FROM devices WHERE id=$1
+  `,[id]);
+  return rows[0] ? {...rowToDevice(rows[0]), status: rows[0].live_status} : null;
 }
 async function saveDevice(d){
   if(!pool){devices.set(d.id,d);return d}
