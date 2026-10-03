@@ -80,21 +80,21 @@ async function queueCommand(deviceId,command,payload={},dedupeKey=null){
   if(!pool){
     if(dedupeKey){
       const existing=Array.from(commands.values()).find(c=>c.dedupeKey===dedupeKey);
-      if(existing)return existing;
+      if(existing)return {...existing,deduplicated:true};
     }
     item.dedupeKey=dedupeKey;
     commands.set(id,item);
-    return item;
+    return {...item,deduplicated:false};
   }
   try {
     const {rows}=await pool.query(`INSERT INTO commands(id,device_id,command,payload,status,created_at,updated_at,result,dedupe_key)
       VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9) RETURNING *`,
       [id,deviceId,command,JSON.stringify(payload),"QUEUED",now,now,null,dedupeKey]);
-    return rowToCommand(rows[0]);
+    return {...rowToCommand(rows[0]),deduplicated:false};
   } catch(e) {
     if(e.code==="23505" && dedupeKey){
       const existing=await pool.query("SELECT * FROM commands WHERE dedupe_key=$1 LIMIT 1",[dedupeKey]);
-      if(existing.rows[0])return rowToCommand(existing.rows[0]);
+      if(existing.rows[0])return {...rowToCommand(existing.rows[0]),deduplicated:true};
     }
     throw e;
   }
