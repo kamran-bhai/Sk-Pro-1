@@ -1,6 +1,6 @@
 const http=require("http"),crypto=require("crypto");
 const {initDb}=require("./db");
-const {normalizeDevice,listDevices,getDevice,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
+const {normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice}=require("./device-store");
 const {listCustomers,saveCustomer,listAgreements,saveAgreement,markInstallmentPaid,listEnach,saveEnach,updateEnach}=require("./business-store");
 const PORT=Number(process.env.PORT||10000),JWT_SECRET=process.env.JWT_SECRET||"bd-pro-change-this-secret";
 const ADMIN_EMAIL=(process.env.ADMIN_EMAIL||"admin@bdpro.local").toLowerCase(),ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"ChangeMe123!";
@@ -17,7 +17,7 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="OPTIONS")return send(res,204,{});
   if(req.method==="GET"&&req.url==="/health")return send(res,200,{ok:true,service:"bd-pro-backend"});
   if(req.method==="POST"&&req.url==="/api/v1/auth/login")return readBody(req,b=>{const email=String(b.email||"").trim().toLowerCase(),password=String(b.password||"");if(!email||!password)return send(res,400,{message:"Email and password are required"});if(email!==ADMIN_EMAIL||password!==ADMIN_PASSWORD)return send(res,401,{message:"Invalid admin credentials"});send(res,200,{token:makeToken(),email:ADMIN_EMAIL,role:"ADMIN",expiresIn:43200})});
-  if(req.method==="POST"&&req.url==="/api/v1/agent/enroll")return readBody(req,async b=>{const did=String(b.deviceId||"").trim();const d=await getDevice(did);if(!d)return send(res,404,{message:"Device ID is not registered"});if(!deviceAuth(req,res,d))return;await markDeviceOnline(d);return send(res,200,{enrolled:true,device:{id:d.id,deviceId:d.deviceId,model:d.model,customerName:d.customerName,status:d.status}})});
+  if(req.method==="POST"&&req.url==="/api/v1/agent/enroll")return readBody(req,async b=>{const did=String(b.deviceId||"").trim();const d=await getDeviceByDeviceId(did);if(!d)return send(res,404,{message:"Device ID is not registered"});if(!deviceAuth(req,res,d))return;await markDeviceOnline(d);return send(res,200,{enrolled:true,device:{id:d.id,deviceId:d.deviceId,model:d.model,customerName:d.customerName,status:d.status}})});
   const poll=req.url.match(/^\/api\/v1\/agent\/devices\/([^/]+)\/commands$/);
   if(poll&&req.method==="GET"){const d=await getDevice(poll[1]);if(!deviceAuth(req,res,d))return;await markDeviceOnline(d);return send(res,200,{commands:await getQueuedCommands(d.id,10)})}
   const ack=req.url.match(/^\/api\/v1\/agent\/commands\/([^/]+)\/ack$/);
