@@ -162,8 +162,14 @@ async function updateCommand(id,status,result=null){
   if(!pool){const item=commands.get(id);if(!item||!["QUEUED","SENT"].includes(item.status))return null;item.status=status;item.result=result;item.updatedAt=new Date().toISOString();commands.set(id,item);return item}
   const {rows}=await pool.query("UPDATE commands SET status=$2,result=$3,updated_at=NOW() WHERE id=$1 AND status IN ('QUEUED','SENT') RETURNING *",[id,status,result]);return rowToCommand(rows[0]);
 }
+async function retryCommand(id){
+  const original=await getCommand(id);
+  if(!original)return null;
+  if(original.status!=="FAILED")throw new Error("Only FAILED commands can be retried");
+  return queueCommand(original.deviceId,original.command,original.payload,null);
+}
 async function deleteDevice(id){
   if(!pool){devices.delete(id);for(const [cid,c] of commands)if(c.deviceId===id)commands.delete(cid);return}
   await pool.query("DELETE FROM devices WHERE id=$1",[id]);
 }
-module.exports={devices,commands,normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,deleteDevice};
+module.exports={devices,commands,normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,retryCommand,deleteDevice};
