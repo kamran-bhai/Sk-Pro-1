@@ -15,7 +15,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URI
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), ActivityCompat.OnRequestPermissionsResultCallback {
     private lateinit var prefs: AgentPrefs
     private val locationRequestCode = 2001
     private val phoneStateRequestCode = 2002
@@ -221,7 +221,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != locationRequestCode && requestCode != phoneStateRequestCode) return
 
