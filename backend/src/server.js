@@ -48,8 +48,7 @@ const server=http.createServer(async(req,res)=>{
    if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});
    const payload=b.payload||{},dedupeKey=String(req.headers["idempotency-key"]||"").trim()||commandDedupeKey(d.id,command,payload);
    const queued=await queueCommand(d.id,command,payload,dedupeKey);
-   const duplicate=queued.status!=="QUEUED" || queued.createdAt!==queued.updatedAt || queued.id!=="";
-   return send(res,202,{command:queued,deduplicated:queued.id!==undefined && queued.createdAt!==queued.updatedAt ? true : false});
+   return send(res,202,{command:queued,deduplicated:Boolean(queued.deduplicated)});
  });
   const qs=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
   if(qs&&req.method==="GET"){const command=await getCommand(qs[1]);if(!command)return send(res,404,{message:"Command not found"});return send(res,200,{command})}
