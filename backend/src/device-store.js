@@ -28,7 +28,6 @@ async function listDevices(filters={}){
     const q=String(filters.search||"").trim().toLowerCase(), status=String(filters.status||"").toUpperCase(), customer=String(filters.customer||"").trim().toLowerCase();
     return Array.from(devices.values()).filter(d=>(!q||[d.deviceId,d.imei,d.model,d.customerName,d.customerPhone].some(v=>String(v).toLowerCase().includes(q)))&&(!customer||d.customerName.toLowerCase().includes(customer)||d.customerPhone.toLowerCase().includes(customer))&&(!status||d.status.toUpperCase()===status));
   }
-  return Array.from(devices.values());
   const {rows}=await pool.query(`
     SELECT *,
       CASE
