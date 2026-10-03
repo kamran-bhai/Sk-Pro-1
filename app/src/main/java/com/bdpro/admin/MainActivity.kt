@@ -19,6 +19,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.Duration
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 
@@ -44,7 +46,7 @@ fun BDProApp() {
                 when (selected) {
                     "Add Device" -> AddDeviceScreen(session.token() ?: "") { selected = "Device List" }
                     "Device List" -> DeviceListScreen(session.token() ?: "") { d -> selectedDevice = d; selected = "Device Details" }
-                    "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
+                    "Device Details" -> selectedDevice?.let { DeviceDetailsScreen(session.token() ?: "", it) { selected = "Run Command" } } ?: DashboardScreen { selected = it }
                     "Run Command" -> RunCommandScreen(session.token() ?: "", selectedDevice)
                     "Location" -> RunCommandScreen(session.token() ?: "", selectedDevice, "LOCATION")
                     "Diagnostics" -> RunCommandScreen(session.token() ?: "", selectedDevice, "DIAGNOSTICS")
@@ -125,31 +127,127 @@ fun BDProApp() {
     }
 }
 
-@Composable private fun DeviceListScreen(token: String, onSelect: (DeviceDto) -> Unit) {
-    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }; var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message ?: "Unable to load devices" }
-            delay(10000)
-        }
-    }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Device List", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (devices.isEmpty() && error == null) Text("No devices added yet.")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) { items(devices) { d ->
-            ElevatedCard(onClick = { onSelect(d) }, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) {
-                Text(d.model.ifBlank { "Unknown model" }, style = MaterialTheme.typography.titleMedium); Text("Device ID: " + d.deviceId); Text("IMEI: " + d.imei)
-                Text("Customer: " + d.customerName.ifBlank { "—" }); Text("Status: " + d.status); Text("Last seen: " + (d.lastSeenAt ?: "Not connected yet")); Text("Tap for details")
-            }}
-        }}
+private fun connectionLabel(device: DeviceDto): String {
+    return when (device.status.uppercase()) {
+        "ONLINE" -> "ONLINE"
+        "OFFLINE" -> "OFFLINE"
+        else -> device.status.ifBlank { "UNKNOWN" }.uppercase()
     }
 }
 
-@Composable private fun DeviceDetailsScreen(device: DeviceDto, onCommand: () -> Unit) {
+private fun lastSeenLabel(value: String?): String {
+    if (value.isNullOrBlank()) return "Not connected yet"
+    val parsed = runCatching { Instant.parse(value) }.getOrNull() ?: return value
+    val seconds = Duration.between(parsed, Instant.now()).seconds.coerceAtLeast(0)
+    return when {
+        seconds < 10 -> "Just now"
+        seconds < 60 -> seconds.toString() + " sec ago"
+        seconds < 3600 -> (seconds / 60).toString() + " min ago"
+        seconds < 86400 -> (seconds / 3600).toString() + " hr ago"
+        else -> (seconds / 86400).toString() + " day ago"
+    }
+}
+
+@Composable private fun ConnectionBadge(device: DeviceDto) {
+    val online = connectionLabel(device) == "ONLINE"
+    Surface(shape = MaterialTheme.shapes.small, tonalElevation = 2.dp) {
+        Text(
+            if (online) "● ONLINE" else "● " + connectionLabel(device),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            color = if (online) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
+@Composable private fun DeviceListScreen(token: String, onSelect: (DeviceDto) -> Unit) {
+    var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            refreshing = true
+            ApiClient.listDevices(token)
+                .onSuccess { devices = it; error = null }
+                .onFailure { error = it.message ?: "Unable to load devices" }
+            refreshing = false
+            delay(10000)
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Device Details", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(16.dp))
-        Text("Device ID: " + device.deviceId); Text("IMEI: " + device.imei); Text("Model: " + device.model.ifBlank { "Unknown" }); Text("Customer: " + device.customerName.ifBlank { "—" }); Text("Phone: " + device.customerPhone.ifBlank { "—" })
-        Text("Status: " + device.status); Text("Last seen: " + (device.lastSeenAt ?: "Not connected yet")); Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Device List", style = MaterialTheme.typography.headlineSmall)
+            Text(if (refreshing) "Updating..." else "Live • 10s", style = MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("ONLINE means the Device Agent checked in within the last 30 seconds.", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(12.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (devices.isEmpty() && error == null) Text("No devices added yet.")
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(devices) { d ->
+                ElevatedCard(onClick = { onSelect(d) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(d.model.ifBlank { "Unknown model" }, style = MaterialTheme.typography.titleMedium)
+                            ConnectionBadge(d)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text("Device ID: " + d.deviceId)
+                        Text("IMEI: " + d.imei)
+                        Text("Customer: " + d.customerName.ifBlank { "—" })
+                        Text("Last check-in: " + lastSeenLabel(d.lastSeenAt))
+                        Spacer(Modifier.height(4.dp))
+                        Text("Tap for details", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun DeviceDetailsScreen(token: String, initialDevice: DeviceDto, onCommand: () -> Unit) {
+    var device by remember(initialDevice.id) { mutableStateOf(initialDevice) }
+    var refreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialDevice.id) {
+        while (true) {
+            refreshing = true
+            ApiClient.listDevices(token).onSuccess { list ->
+                list.firstOrNull { it.id == initialDevice.id }?.let { device = it }
+            }
+            refreshing = false
+            delay(10000)
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Device Details", style = MaterialTheme.typography.headlineSmall)
+            Text(if (refreshing) "Updating..." else "Live • 10s", style = MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.height(12.dp))
+        ConnectionBadge(device)
+        Spacer(Modifier.height(12.dp))
+        Text("Device ID: " + device.deviceId)
+        Text("IMEI: " + device.imei)
+        Text("Model: " + device.model.ifBlank { "Unknown" })
+        Text("Customer: " + device.customerName.ifBlank { "—" })
+        Text("Phone: " + device.customerPhone.ifBlank { "—" })
+        Spacer(Modifier.height(10.dp))
+        Text("Connection: " + connectionLabel(device))
+        Text("Last check-in: " + lastSeenLabel(device.lastSeenAt))
+        Text(
+            if (connectionLabel(device) == "ONLINE")
+                "Device Agent is currently connected to the backend."
+            else
+                "Device Agent is not currently connected. Make sure the Agent is running and has internet access.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Spacer(Modifier.height(20.dp))
         Button(onClick = onCommand, modifier = Modifier.fillMaxWidth()) { Text("RUN COMMAND") }
     }
 }
