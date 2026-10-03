@@ -89,6 +89,46 @@ async function getQueuedCommands(deviceId,limit=10){
     await client.query("COMMIT"); return out;
   }catch(e){await client.query("ROLLBACK");throw e}finally{client.release()}
 }
+async function expireStaleCommands(){
+  const now=Date.now();
+  const queuedTimeoutMs=10*60*1000;
+  const sentTimeoutMs=90*1000;
+  if(!pool){
+    for(const item of commands.values()){
+      const age=now-Date.parse(item.updatedAt||item.createdAt);
+      const limit=item.status==="SENT"?sentTimeoutMs:queuedTimeoutMs;
+      if((item.status==="SENT"||item.status==="QUEUED")&&age>=limit){
+        item.status="FAILED";
+        item.result=item.status==="SENT" ? "Agent acknowledgement timeout" : "Command delivery timeout";
+        item.updatedAt=new Date().toISOString();
+      }
+    }
+    return;
+  }
+  await pool.query(`
+    UPDATE commands
+    SET status='FAILED',
+        result=CASE WHEN status='SENT' THEN 'Agent acknowledgement timeout' ELSE 'Command delivery timeout' END,
+        updated_at=NOW()
+    WHERE status IN ('QUEUED','SENT')
+      AND ((status='SENT' AND updated_at < NOW()-INTERVAL '90 seconds')
+        OR (status='QUEUED' AND created_at < NOW()-INTERVAL '10 minutes'))
+  `);
+}
+async function listCommands(deviceId=null,limit=50){
+  await expireStaleCommands();
+  if(!pool){
+    return Array.from(commands.values())
+      .filter(c=>!deviceId||c.deviceId===deviceId)
+      .sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,limit);
+  }
+  const params=[];
+  let sql="SELECT * FROM commands";
+  if(deviceId){params.push(deviceId);sql+=" WHERE device_id=$1";}
+  sql+=" ORDER BY created_at DESC LIMIT "+Math.min(Math.max(Number(limit)||50,1),200);
+  const {rows}=await pool.query(sql,params);
+  return rows.map(rowToCommand);
+}
 async function getCommand(id){
   if(!pool)return commands.get(id)||null;
   const {rows}=await pool.query("SELECT * FROM commands WHERE id=$1",[id]);return rowToCommand(rows[0]);
@@ -101,4 +141,4 @@ async function deleteDevice(id){
   if(!pool){devices.delete(id);for(const [cid,c] of commands)if(c.deviceId===id)commands.delete(cid);return}
   await pool.query("DELETE FROM devices WHERE id=$1",[id]);
 }
-module.exports={devices,commands,normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,getCommand,updateCommand,deleteDevice};
+module.exports={devices,commands,normalizeDevice,listDevices,getDevice,getDeviceByDeviceId,saveDevice,markDeviceOnline,queueCommand,getQueuedCommands,listCommands,expireStaleCommands,getCommand,updateCommand,deleteDevice};
