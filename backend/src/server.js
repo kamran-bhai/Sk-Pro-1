@@ -33,18 +33,18 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==="POST"&&req.url==="/api/v1/enach")return readBody(req,async b=>{try{send(res,201,{enach:await saveEnach(b)})}catch(e){send(res,400,{message:e.message})}});
   const nach=req.url.match(/^\/api\/v1\/enach\/([^/]+)\/status$/);
   if(nach&&req.method==="POST")return readBody(req,async b=>{try{const e=await updateEnach(nach[1],String(b.status||"").toUpperCase());if(!e)return send(res,404,{message:"eNACH record not found"});send(res,200,{enach:e})}catch(e){send(res,400,{message:e.message})}});
+  if(req.method==="GET"&&req.url==="/api/v1/devices"){const ds=await listDevices();return send(res,200,{devices:ds.map(({controlKey,...d})=>d)})}
+  if(req.method==="POST"&&req.url==="/api/v1/devices")return readBody(req,async b=>{if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});try{const d=await saveDevice(normalizeDevice(b));send(res,201,{device:d,enrollment:{deviceId:d.deviceId,controlKey:d.controlKey}})}catch(e){if(e.code==="23505")send(res,409,{message:"Device ID or control key already exists"});else throw e}});
+  const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
+  if(cm&&req.method==="POST")return readBody(req,async b=>{const d=await getDevice(cm[1]);if(!d)return send(res,404,{message:"Device not found"});const allowed=["LOCK","UNLOCK","LOCATION","DIAGNOSTICS","AUTOLOCK_ON","AUTOLOCK_OFF","ANTI_THEFT_ON","ANTI_THEFT_OFF"],command=String(b.command||"").trim().toUpperCase();if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});send(res,202,{command:await queueCommand(d.id,command,b.payload||{})})});
+  const qs=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
+  if(qs&&req.method==="GET"){const command=await getCommand(qs[1]);if(!command)return send(res,404,{message:"Command not found"});return send(res,200,{command})}
   if(req.method==="GET"&&req.url.startsWith("/api/v1/commands")){
     const u=new URL(req.url,"http://localhost");
     const deviceId=u.searchParams.get("deviceId");
     const limit=u.searchParams.get("limit")||"50";
     return send(res,200,{commands:await listCommands(deviceId,limit)});
   }
-  if(req.method==="GET"&&req.url==="/api/v1/devices"){const ds=await listDevices();return send(res,200,{devices:ds.map(({controlKey,...d})=>d)})}
-  if(req.method==="POST"&&req.url==="/api/v1/devices")return readBody(req,async b=>{if(!b.deviceId||!b.imei)return send(res,400,{message:"deviceId and imei are required"});try{const d=await saveDevice(normalizeDevice(b));send(res,201,{device:d,enrollment:{deviceId:d.deviceId,controlKey:d.controlKey}})}catch(e){if(e.code==="23505")send(res,409,{message:"Device ID or control key already exists"});else throw e}});
-  const cm=req.url.match(/^\/api\/v1\/devices\/([^/]+)\/commands$/);
-  if(cm&&req.method==="POST")return readBody(req,async b=>{const d=await getDevice(cm[1]);if(!d)return send(res,404,{message:"Device not found"});const allowed=["LOCK","UNLOCK","LOCATION","DIAGNOSTICS","AUTOLOCK_ON","AUTOLOCK_OFF","ANTI_THEFT_ON","ANTI_THEFT_OFF"],command=String(b.command||"").trim().toUpperCase();if(!allowed.includes(command))return send(res,400,{message:"Unsupported command"});send(res,202,{command:await queueCommand(d.id,command,b.payload||{})})});
-  const qs=req.url.match(/^\/api\/v1\/commands\/([^/]+)$/);
-  if(qs&&req.method==="GET")return send(res,200,{command:await getCommand(qs[1])});
   const m=req.url.match(/^\/api\/v1\/devices\/([^/]+)$/);
   if(m&&req.method==="GET"){const d=await getDevice(m[1]);if(!d)return send(res,404,{message:"Device not found"});const {controlKey,...safe}=d;return send(res,200,{device:safe})}
   if(m&&req.method==="DELETE"){await deleteDevice(m[1]);return send(res,200,{ok:true})}
