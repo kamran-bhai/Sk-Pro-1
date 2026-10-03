@@ -10,7 +10,7 @@ function verifyToken(token){try{const parts=String(token||"").split(".");if(part
 function send(res,status,data){res.writeHead(status,{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization, X-Device-Key","Access-Control-Allow-Methods":"GET, POST, DELETE, OPTIONS"});res.end(JSON.stringify(data))}
 function adminAuth(req,res){const h=req.headers.authorization||"";if(!h.startsWith("Bearer ")){send(res,401,{message:"Missing access token"});return false}if(!verifyToken(h.slice(7))){send(res,401,{message:"Invalid or expired access token"});return false}return true}
 function deviceAuth(req,res,d){if(!d||req.headers["x-device-key"]!==d.controlKey){send(res,401,{message:"Invalid device credentials"});return false}return true}
-function agentMeta(req){return {version:String(req.headers["x-agent-version"]||"").trim(),status:String(req.headers["x-agent-status"]||"RUNNING").trim().toUpperCase()}}
+function agentMeta(req){\n const version=String(req.headers["x-agent-version"]||"").trim().slice(0,64);\n const requested=String(req.headers["x-agent-status"]||"RUNNING").trim().toUpperCase();\n const status=["RUNNING","DEGRADED","STARTING","ERROR"].includes(requested)?requested:"RUNNING";\n return {version,status};\n}
 function readBody(req,done){let raw="";req.on("data",c=>raw+=c);req.on("end",()=>{try{done(JSON.parse(raw||"{}"))}catch{done({})}})}
 function commandDedupeKey(deviceId,command,payload){
  const bucket=Math.floor(Date.now()/10000);
