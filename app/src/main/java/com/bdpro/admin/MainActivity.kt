@@ -493,6 +493,26 @@ private fun lastSeenLabel(value: String?): String {
                         Text("Status: " + item.status)
                         Text("Created: " + lastSeenLabel(item.createdAt))
                         item.result?.takeIf { it.isNotBlank() }?.let { Text("Result: " + it) }
+                        if (item.status == "FAILED") {
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    message = "Retrying " + item.command + "..."
+                                    Thread {
+                                        val result = ApiClient.retryCommand(token, item.id)
+                                        Handler(Looper.getMainLooper()).post {
+                                            result.onSuccess {
+                                                activeCommand = it
+                                                message = it.command + " • RETRY QUEUED"
+                                            }.onFailure {
+                                                message = it.message ?: "Retry failed"
+                                            }
+                                        }
+                                    }.start()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("RETRY COMMAND") }
+                        }
                     }
                 }
             }
