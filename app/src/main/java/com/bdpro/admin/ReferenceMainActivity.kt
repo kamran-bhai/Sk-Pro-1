@@ -1,9 +1,11 @@
 package com.bdpro.admin
 
+import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,8 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
 import kotlinx.coroutines.delay
 
 private val RefNavy = Color(0xFF071827)
@@ -41,11 +46,12 @@ private fun ReferenceApp() {
                     if (page != null) when (page) {
                         "customer" -> CustomerWizard(session.token() ?: "") { page = null; tab = "Customers" }
                         "add" -> RefAddDevice(session.token() ?: "") { page = null; tab = "Devices" }
+                        "enroll" -> RefEnrollQr { page = null; tab = "Devices" }
                         "control" -> RefControl(session.token() ?: "", selectedDevice)
                         else -> RefInfo(page ?: "More")
                     } else when (tab) {
                         "Customers" -> RefCustomers(session.token() ?: "") { page = "customer" }
-                        "Devices" -> RefDevices(session.token() ?: "", onAdd = { page = "add" }) { selectedDevice = it; page = "control" }
+                        "Devices" -> RefDevices(session.token() ?: "", onAdd = { page = "add" }, onEnroll = { page = "enroll" }) { selectedDevice = it; page = "control" }
                         "Payments" -> RefInfo("Payments")
                         "More" -> RefMore { page = it }
                         else -> RefHome(session.token() ?: "") { a -> when(a) { "add" -> page="add"; "customers" -> tab="Customers"; "devices" -> tab="Devices"; "payments" -> tab="Payments" } }
@@ -65,7 +71,7 @@ private fun ReferenceApp() {
  LazyColumn(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=24.dp)){
   item{Column(Modifier.fillMaxWidth().background(RefNavy,RoundedCornerShape(bottomStart=30.dp,bottomEnd=30.dp)).padding(20.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("BD PRO",color=Color.White,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Device & Finance",color=Color.White.copy(.7f))};Pill("EN");Spacer(Modifier.width(6.dp));Pill("🔔");Spacer(Modifier.width(6.dp));Pill("●")};Spacer(Modifier.height(20.dp));Text("Control centre",color=Color.White,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Spacer(Modifier.height(14.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Stat("Devices",devices.size.toString(),Modifier.weight(1f));Stat("Online",online.toString(),Modifier.weight(1f));Stat("Offline",offline.toString(),Modifier.weight(1f))}}}
   item{Title("Installation & Account");Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(10.dp)){CardInfo("Installation","0","keys available",Modifier.weight(1f));CardInfo("Customers",customers.size.toString(),"registered",Modifier.weight(1f))}}
-  item{Title("Quick Actions");Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action("Add Device","＋",Modifier.weight(1f)){on("add")};Action("Customers","♙",Modifier.weight(1f)){on("customers")}}}
+  item{Title("Quick Actions");Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action("Enroll New Phone","▣",Modifier.weight(1f)){on("enroll")};Action("Add Device","＋",Modifier.weight(1f)){on("add")}}}
   item{Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action("Device Control","▣",Modifier.weight(1f)){on("devices")};Action("Payments","৳",Modifier.weight(1f)){on("payments")}}}
   item{ElevatedCard(Modifier.padding(horizontal=16.dp).fillMaxWidth(),shape=RoundedCornerShape(18.dp)){Column(Modifier.padding(16.dp)){Text("Finance Overview",fontWeight=FontWeight.Bold);Text("Outstanding balance");Text("${"%.2f".format(outstanding)}",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Button({on("payments")},Modifier.fillMaxWidth()){Text("VIEW INSTALLMENTS")}}}}
  }
@@ -84,7 +90,7 @@ private fun ReferenceApp() {
 }
 @Composable private fun Field(l:String,v:String,on:(String)->Unit){OutlinedTextField(v,on,label={Text(l)},modifier=Modifier.fillMaxWidth())}
 
-@Composable private fun RefDevices(token:String,onAdd:()->Unit,onSelect:(DeviceDto)->Unit){var ds by remember{mutableStateOf<List<DeviceDto>>(emptyList())};var search by remember{mutableStateOf("")};var status by remember{mutableStateOf("ALL")};LaunchedEffect(search,status){while(true){ApiClient.listDevices(token,search,if(status=="ALL")"" else status).onSuccess{ds=it};delay(10000)}};LazyColumn(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Devices",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));Button(onClick=onAdd){Text("ADD DEVICE")}}};item{Field("Search device / IMEI / customer",search){search=it}};item{Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){listOf("ALL","ONLINE","OFFLINE").forEach{s->OutlinedButton({status=s},Modifier.weight(1f)){Text(if(status==s)"✓ $s" else s)}}}};if(ds.isEmpty())item{ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("No devices registered",fontWeight=FontWeight.Bold);Text("Add a device to generate its Control Key and connect the Device Agent.");Spacer(Modifier.height(8.dp));Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("ADD FIRST DEVICE")}}}};items(ds){d->ElevatedCard({onSelect(d)},Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)){Column(Modifier.padding(14.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(d.model.ifBlank{"Device"},fontWeight=FontWeight.Bold);Text(d.status)};Text(d.deviceId);Text("IMEI: ${d.imei}",style=MaterialTheme.typography.bodySmall);Text("Customer: ${d.customerName.ifBlank{"—"}}",style=MaterialTheme.typography.bodySmall)}}}}
+@Composable private fun RefDevices(token:String,onAdd:()->Unit,onEnroll:()->Unit,onSelect:(DeviceDto)->Unit){var ds by remember{mutableStateOf<List<DeviceDto>>(emptyList())};var search by remember{mutableStateOf("")};var status by remember{mutableStateOf("ALL")};LaunchedEffect(search,status){while(true){ApiClient.listDevices(token,search,if(status=="ALL")"" else status).onSuccess{ds=it};delay(10000)}};LazyColumn(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Devices",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));Button(onClick=onAdd){Text("ADD DEVICE")}};OutlinedButton(onClick=onEnroll,modifier=Modifier.fillMaxWidth()){Text("ENROLL / SETUP QR")}}};item{Field("Search device / IMEI / customer",search){search=it}};item{Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){listOf("ALL","ONLINE","OFFLINE").forEach{s->OutlinedButton({status=s},Modifier.weight(1f)){Text(if(status==s)"✓ $s" else s)}}}};if(ds.isEmpty())item{ElevatedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("No devices registered",fontWeight=FontWeight.Bold);Text("Add a device to generate its Control Key and connect the Device Agent.");Spacer(Modifier.height(8.dp));Button(onClick=onAdd,modifier=Modifier.fillMaxWidth()){Text("ADD FIRST DEVICE")}}}};items(ds){d->ElevatedCard({onSelect(d)},Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)){Column(Modifier.padding(14.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(d.model.ifBlank{"Device"},fontWeight=FontWeight.Bold);Text(d.status)};Text(d.deviceId);Text("IMEI: ${d.imei}",style=MaterialTheme.typography.bodySmall);Text("Customer: ${d.customerName.ifBlank{"—"}}",style=MaterialTheme.typography.bodySmall)}}}}
 }
 
 @Composable private fun RefControl(token:String,device:DeviceDto?){
@@ -99,6 +105,75 @@ item{msg?.let{Text(it,color=MaterialTheme.colorScheme.primary)}}
 item{Text("Command History",fontWeight=FontWeight.Bold);if(history.isEmpty())Text("No commands yet.",style=MaterialTheme.typography.bodySmall)}
 items(history.take(20)){cmd->ElevatedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(14.dp)){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(5.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(cmd.command,fontWeight=FontWeight.Bold);Text(cmd.status,fontWeight=FontWeight.SemiBold)};Text(cmd.createdAt,style=MaterialTheme.typography.labelSmall);if(cmd.latitude!=null&&cmd.longitude!=null){Text("Location: ${"%.6f".format(cmd.latitude)}, ${"%.6f".format(cmd.longitude)}",fontWeight=FontWeight.Medium);cmd.accuracyMeters?.let{Text("Accuracy: ${"%.1f".format(it)} m",style=MaterialTheme.typography.bodySmall)};cmd.locationTimestamp?.let{Text("Timestamp: $it",style=MaterialTheme.typography.bodySmall)}};if(cmd.batteryPercent!=null){Text("Battery: ${cmd.batteryPercent}% • Charging: ${cmd.charging==true}");Text("Device Admin: ${cmd.deviceAdmin==true} • Uptime: ${cmd.uptimeSeconds?:0}s",style=MaterialTheme.typography.bodySmall)};cmd.result?.takeIf{it.isNotBlank() && cmd.latitude==null && cmd.batteryPercent==null}?.let{Text(it,style=MaterialTheme.typography.bodySmall)};if(cmd.status=="FAILED"){OutlinedButton(onClick={Thread{val r=ApiClient.retryCommand(token,cmd.id);android.os.Handler(android.os.Looper.getMainLooper()).post{r.onSuccess{msg="Retry queued for "+"${cmd.command}"}.onFailure{msg=it.message?:"Retry failed"}}}.start()}){Text("RETRY")}}}}}
 item{Text("Location and Diagnostics results are shown in command history after the Device Agent acknowledges the command.",style=MaterialTheme.typography.bodySmall)}}}
+
+private const val SETUP_QR_PAYLOAD = """{
+   "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":"com.afwsamples.testdpc/com.afwsamples.testdpc.DeviceAdminReceiver",
+   "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":"gJD2YwtOiWJHkSMkkIfLRlj-quNqG1fb6v100QmzM9w=",
+   "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":"https://storage.googleapis.com/emm-dpc/master/testdpc.apk",
+   "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED":true
+}"""
+
+private const val TRANSFER_QR_URL = "https://storage.googleapis.com/emm-dpc/BKPRO/bk_bkpro_V3_3.0.7.apk"
+
+private fun makeQrBitmap(value:String,size:Int=900): Bitmap {
+    val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, size, size)
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    for (x in 0 until size) {
+        for (y in 0 until size) {
+            bitmap.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        }
+    }
+    return bitmap
+}
+
+@Composable
+private fun RefEnrollQr(onDone:()->Unit) {
+    val setupQr = remember { makeQrBitmap(SETUP_QR_PAYLOAD) }
+    val transferQr = remember { makeQrBitmap(TRANSFER_QR_URL) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun copy(label:String,value:String) {
+        val clip = android.content.ClipData.newPlainText(label,value)
+        (context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip)
+        Toast.makeText(context,"$label copied",Toast.LENGTH_SHORT).show()
+    }
+
+    LazyColumn(
+        Modifier.padding(16.dp),
+        verticalArrangement=Arrangement.spacedBy(12.dp),
+        contentPadding=PaddingValues(bottom=24.dp)
+    ) {
+        item {
+            Text("Scan to Enroll New Phone",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+            Text("Use the SETUP QR during Android device provisioning. After setup, use TRANSFER QR with Chrome / Google Lens to install BK Pro.")
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(14.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    Text("SETUP QR",fontWeight=FontWeight.Bold)
+                    Text("Android provisioning • Test DPC",style=MaterialTheme.typography.bodySmall)
+                    Image(setupQr.asImageBitmap(),contentDescription="SETUP QR",modifier=Modifier.fillMaxWidth().padding(8.dp))
+                    OutlinedButton(onClick={copy("SETUP QR payload",SETUP_QR_PAYLOAD)},modifier=Modifier.fillMaxWidth()){Text("COPY SETUP DATA")}
+                }
+            }
+        }
+        item {
+            ElevatedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(14.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    Text("TRANSFER QR",fontWeight=FontWeight.Bold)
+                    Text("Scan with Chrome / Google Lens to install BK Pro",style=MaterialTheme.typography.bodySmall)
+                    Image(transferQr.asImageBitmap(),contentDescription="TRANSFER QR",modifier=Modifier.fillMaxWidth().padding(8.dp))
+                    OutlinedButton(onClick={copy("TRANSFER APK URL",TRANSFER_QR_URL)},modifier=Modifier.fillMaxWidth()){Text("COPY APK LINK")}
+                }
+            }
+        }
+        item {
+            Text("Setup order",fontWeight=FontWeight.Bold)
+            Text("1. Factory-reset / unprovisioned customer phone → scan SETUP QR.\n2. Android downloads Test DPC and completes device-owner provisioning.\n3. After the phone reaches the normal setup/home flow, scan TRANSFER QR with Chrome / Google Lens.\n4. Install/open BK Pro and complete its enrollment with the device Control Key.")
+        }
+        item { Button(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("DONE")} }
+    }
+}
+
 @Composable private fun RefAddDevice(token:String,onDone:()->Unit){val context = androidx.compose.ui.platform.LocalContext.current;var id by remember{mutableStateOf("")};var imei by remember{mutableStateOf("")};var model by remember{mutableStateOf("")};var customer by remember{mutableStateOf("")};var phone by remember{mutableStateOf("")};var msg by remember{mutableStateOf<String?>(null)};var controlKey by remember{mutableStateOf<String?>(null)};LazyColumn(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(bottom=24.dp)){item{Text("Add Device",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Create the device record and generate its Control Key.")};item{Field("Device ID",id){id=it}};item{Field("IMEI",imei){imei=it}};item{Field("Device Model",model){model=it}};item{Field("Customer Name",customer){customer=it}};item{Field("Customer Phone",phone){phone=it}};item{OutlinedButton({msg="QR scanner placeholder: scanner dependency will be connected next."},Modifier.fillMaxWidth()){Text("SCAN IMEI QR CODE")}};item{Button(enabled=id.isNotBlank()&&imei.isNotBlank()&&controlKey==null,onClick={Thread{val r=ApiClient.addDevice(token,id,imei,model,customer,phone);android.os.Handler(android.os.Looper.getMainLooper()).post{r.onSuccess{enrollment->controlKey=enrollment.controlKey;msg="Device added successfully."}.onFailure{msg=it.message?:"Add device failed"}}}.start()},modifier=Modifier.fillMaxWidth()){Text(if(controlKey==null)"ADD DEVICE" else "DEVICE CREATED")}};controlKey?.let{key->item{ElevatedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Text("CONTROL KEY",fontWeight=FontWeight.Bold);Text(key,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("Copy this key into the Device Agent. It is shown here because the backend returns it only when the device is created.",style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.fillMaxWidth()){OutlinedButton(onClick={val clip=android.content.ClipData.newPlainText("Control Key",key);(context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip);msg="Control Key copied."},modifier=Modifier.weight(1f)){Text("COPY KEY")};Button(onClick=onDone,modifier=Modifier.weight(1f)){Text("DONE")}}}}}};msg?.let{item{Text(it,color=MaterialTheme.colorScheme.primary)}}}}
 
 @Composable private fun RefMore(on:(String)->Unit){LazyColumn(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{Text("More",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)};items(listOf("eNACH","Auto Lock","Anti Theft","Location","Diagnostics","Admin Profile")){t->ElevatedCard({on(t)},Modifier.fillMaxWidth(),shape=RoundedCornerShape(15.dp)){Text(t,Modifier.padding(16.dp),fontWeight=FontWeight.SemiBold)}}}}
