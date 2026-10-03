@@ -98,8 +98,9 @@ async function expireStaleCommands(){
       const age=now-Date.parse(item.updatedAt||item.createdAt);
       const limit=item.status==="SENT"?sentTimeoutMs:queuedTimeoutMs;
       if((item.status==="SENT"||item.status==="QUEUED")&&age>=limit){
+        const previousStatus=item.status;
         item.status="FAILED";
-        item.result=item.status==="SENT" ? "Agent acknowledgement timeout" : "Command delivery timeout";
+        item.result=previousStatus==="SENT" ? "Agent acknowledgement timeout" : "Command delivery timeout";
         item.updatedAt=new Date().toISOString();
       }
     }
@@ -134,8 +135,8 @@ async function getCommand(id){
   const {rows}=await pool.query("SELECT * FROM commands WHERE id=$1",[id]);return rowToCommand(rows[0]);
 }
 async function updateCommand(id,status,result=null){
-  if(!pool){const item=commands.get(id);if(!item)return null;item.status=status;item.result=result;item.updatedAt=new Date().toISOString();commands.set(id,item);return item}
-  const {rows}=await pool.query("UPDATE commands SET status=$2,result=$3,updated_at=NOW() WHERE id=$1 RETURNING *",[id,status,result]);return rowToCommand(rows[0]);
+  if(!pool){const item=commands.get(id);if(!item||!["QUEUED","SENT"].includes(item.status))return null;item.status=status;item.result=result;item.updatedAt=new Date().toISOString();commands.set(id,item);return item}
+  const {rows}=await pool.query("UPDATE commands SET status=$2,result=$3,updated_at=NOW() WHERE id=$1 AND status IN ('QUEUED','SENT') RETURNING *",[id,status,result]);return rowToCommand(rows[0]);
 }
 async function deleteDevice(id){
   if(!pool){devices.delete(id);for(const [cid,c] of commands)if(c.deviceId===id)commands.delete(cid);return}
