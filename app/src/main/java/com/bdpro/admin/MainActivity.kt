@@ -106,7 +106,12 @@ fun BDProApp() {
 
 @Composable private fun DeviceListScreen(token: String, onSelect: (DeviceDto) -> Unit) {
     var devices by remember { mutableStateOf<List<DeviceDto>>(emptyList()) }; var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message ?: "Unable to load devices" } }
+    LaunchedEffect(Unit) {
+        while (true) {
+            ApiClient.listDevices(token).onSuccess { devices = it }.onFailure { error = it.message ?: "Unable to load devices" }
+            delay(10000)
+        }
+    }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Device List", style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp)); error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (devices.isEmpty() && error == null) Text("No devices added yet.")
